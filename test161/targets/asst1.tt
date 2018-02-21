@@ -1,0 +1,40 @@
+name: asst1
+print_name: ASST1
+description: >
+  In this assignment you will implement new synchronization
+  primitives for OS/161 and use them to solve several synchronization problems.
+version: 1
+points: 50
+type: asst
+kconfig: ASST1
+tests:
+  - id: synch/lt1.t
+    points: 8
+  - id: synch/lt2.t
+    points: 1
+  - id: synch/lt3.t
+    points: 1
+  - id: synch/cvt1.t
+    points: 4
+  - id: synch/cvt2.t
+    points: 3
+  - id: synch/cvt3.t
+    points: 1
+  - id: synch/cvt4.t
+    points: 1
+  - id: synch/cvt5.t
+    points: 1
+  - id: synch/rwt1.t
+    points: 5
+  - id: synch/rwt2.t
+    points: 2
+  - id: synch/rwt3.t
+    points: 1
+  - id: synch/rwt4.t
+    points: 1
+  - id: synch/rwt5.t
+    points: 1
+  - id: synchprobs/sp1.t
+    points: 10
+  - id: synchprobs/sp2.t
+    points: 10

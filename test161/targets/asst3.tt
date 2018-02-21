@@ -1,0 +1,12 @@
+name: asst3
+print_name: ASST3
+description: >
+  In this assignment you will add support for virtual memory to your OS/161
+  kernel.
+version: 4
+points: 300
+type: asst
+kconfig: ASST3
+userland: true
+is_meta_target: true
+sub_target_names: ["asst3.1", "asst3.2", "asst3.3"]

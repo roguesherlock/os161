@@ -1,0 +1,12 @@
+name: asst2
+print_name: ASST2
+description: >
+  In this assignment you will add process and system call support to your
+  OS/161 kernel.
+version: 2
+points: 150
+type: asst
+kconfig: ASST2
+userland: true
+is_meta_target: true
+sub_target_names: ["asst2.1", "asst2.2"]
