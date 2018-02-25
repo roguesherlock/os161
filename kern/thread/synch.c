@@ -454,8 +454,10 @@ rwlock_release_write(struct rwlock *rwlock)
 	if (!wchan_isempty(rwlock->reader_wchan, &rwlock->lock))
 		wchan_wakeone(rwlock->reader_wchan, &rwlock->lock);
 
-	else if (!wchan_isempty(rwlock->writer_wchan, &rwlock->lock))
+	else if (!wchan_isempty(rwlock->writer_wchan, &rwlock->lock)) {
 		wchan_wakeone(rwlock->writer_wchan, &rwlock->lock);
+		rwlock->writer_in = true;
+	}
 
 	spinlock_release(&rwlock->lock);
 }
