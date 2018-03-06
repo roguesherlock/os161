@@ -433,7 +433,7 @@ rwlock_acquire_write(struct rwlock *rwlock)
 
 	if (rwlock->writer_in ||
 		rwlock->readers_in != 0 ||
-		!rwlock->writer_turn)
+		(!rwlock->writer_turn && !wchan_isempty(rwlock->reader_wchan, &rwlock->lock)))
 		wchan_sleep(rwlock->writer_wchan, &rwlock->lock);
 	rwlock->writer_in = true;
 
