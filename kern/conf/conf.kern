@@ -342,6 +342,8 @@ optfile   hangman thread/hangman.c
 #
 
 file      proc/proc.c
+file      proc/file_handle.c
+file      proc/files_table.c
 
 #
 # Virtual memory system
@@ -387,6 +389,7 @@ file      vfs/devnull.c
 file      syscall/loadelf.c
 file      syscall/runprogram.c
 file      syscall/time_syscalls.c
+file      syscall/write_syscall.c
 
 #
 # Startup and initialization

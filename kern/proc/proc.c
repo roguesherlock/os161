@@ -48,6 +48,8 @@
 #include <current.h>
 #include <addrspace.h>
 #include <vnode.h>
+#include <files_table.h>
+
 
 /*
  * The process for the kernel; this holds all the kernel-only threads.
@@ -69,6 +71,14 @@ proc_create(const char *name)
 	}
 	proc->p_name = kstrdup(name);
 	if (proc->p_name == NULL) {
+		kfree(proc);
+		return NULL;
+	}
+
+	/* files table fields */
+	proc->files = files_table_create();
+	if (proc->files == NULL) {
+		kfree(proc->p_name);
 		kfree(proc);
 		return NULL;
 	}
@@ -165,6 +175,9 @@ proc_destroy(struct proc *proc)
 		as_destroy(as);
 	}
 
+	KASSERT(proc->files != NULL);
+	files_table_destroy(proc->files);
+
 	KASSERT(proc->p_numthreads == 0);
 	spinlock_cleanup(&proc->p_lock);
 
@@ -217,6 +230,8 @@ proc_create_runprogram(const char *name)
 		newproc->p_cwd = curproc->p_cwd;
 	}
 	spinlock_release(&curproc->p_lock);
+
+	files_table_assign_default_handles(newproc->files);
 
 	return newproc;
 }

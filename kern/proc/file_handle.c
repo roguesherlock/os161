@@ -1,0 +1,143 @@
+/*
+ * files_table.c
+ * Definitions for files_table functions
+ *
+ */
+
+#include <types.h>
+#include <lib.h>
+#include <kern/errno.h>
+#include <kern/unistd.h>
+#include <kern/fcntl.h>
+#include <spinlock.h>
+#include <synch.h>
+#include <vfs.h>
+#include <vnode.h>
+#include <files_table.h>
+#include <file_handle.h>
+
+extern int errno;
+
+
+
+/*
+ *    file_handle_create - create a new file handle pointing to a given file with
+ *                        a given file mode and at a given offset.
+ *                        May return NULL on out-of-memory error.
+ *
+ */
+struct file_handle *
+file_handle_create (struct vnode *file, int f_openflags, off_t f_pos)
+{
+    KASSERT(file != NULL);
+
+    struct file_handle *fh;
+
+    fh = kmalloc(sizeof(*fh));
+    if (fh == NULL) {
+        kprintf("[!] ERROR: [%d], file_handle_create: out of memmory\n", ENOMEM);
+        // errno = ENOMEM;
+        return NULL;
+    }
+
+    spinlock_init(&fh->fh_lock);
+
+    fh->f_lock = rwlock_create("f_lock");
+
+    fh->refcount = 1;
+    fh->file = file;
+    fh->f_openflags = f_openflags & O_ACCMODE; /* Reduce flags to only 3 values R, W, RW */
+    fh->f_pos = f_pos;
+
+    return fh;
+}
+
+
+/*
+ * file_handle_create_std_handle - helper function for creating standard file handles
+ *                                STDIN, STDOUT, STDERR
+ *                                May return NULL on error. Will set proper errno on error.
+ *
+ */
+struct file_handle *
+file_handle_create_std_handle (unsigned int fd)
+{
+    char console_str [] = {'c', 'o', 'n', ':', '\0'};
+    struct vnode *f;
+    int openflags, result;
+    mode_t mode;
+
+    switch (fd) {
+        case STDIN_FILENO:
+            openflags = O_RDONLY;
+            mode = 0444; /* read only permission for everyone */
+            break;
+        case STDOUT_FILENO:
+        case STDERR_FILENO:
+            openflags = O_WRONLY;
+            mode = 0222; /* write only permission for everyone */
+            break;
+        default:
+            kprintf("[!] ERROR: [%d], file_handle_create_std_handle: Invalid fd supplied to file_handle\n", EINVAL);
+            return NULL;
+    }
+
+    result = vfs_open(console_str, openflags, mode, &f);
+    if (result) {
+        // errno = result;
+        return NULL;
+    }
+
+    return file_handle_create(f, openflags, 0);
+
+}
+
+
+/*
+ * file_handle_has_access - check if process has proper acces to the file for it's operation.
+ *
+ */
+bool
+file_handle_has_access (struct file_handle *fh, int flag)
+{
+    KASSERT (fh != NULL);
+
+	switch (flag) {
+	    case READ:
+	    case WRITE:
+            break;
+	    default:
+		    return false;
+	}
+
+    if (fh->f_openflags == O_RDWR)
+        return true;
+
+    return (fh->f_openflags == flag);
+}
+
+
+/*
+ * file_handle_destroy - dispose of a file handle.
+ *
+ */
+void
+file_handle_destroy (struct file_handle *fh)
+{
+    KASSERT(fh != NULL);
+
+    spinlock_acquire(&fh->fh_lock);
+    fh->refcount--;
+    if (fh->refcount == 0) {        /* there's one edge case where this might be true even if some task still references it.
+                                    it's when refcount overlaps. Considering it's 32bit unsigned int, it's very unlikely. */
+        spinlock_release(&fh->fh_lock);
+        vfs_close(fh->file);
+        rwlock_destroy(fh->f_lock);
+        spinlock_cleanup(&fh->fh_lock);
+        kfree(fh);
+
+    } else {
+        spinlock_release(&fh->fh_lock);
+    }
+
+}

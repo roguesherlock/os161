@@ -41,6 +41,7 @@
 struct addrspace;
 struct thread;
 struct vnode;
+struct files_table;
 
 /*
  * Process structure.
@@ -70,7 +71,8 @@ struct proc {
 	/* VFS */
 	struct vnode *p_cwd;		/* current working directory */
 
-	/* add more material here as needed */
+	struct files_table *files; 	/* files table */
+
 };
 
 /* This is the process structure for the kernel and for kernel-only threads. */
