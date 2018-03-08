@@ -394,18 +394,18 @@ file      syscall/time_syscalls.c
 file      syscall/open_syscall.c
 file      syscall/read_syscall.c
 file      syscall/write_syscall.c
-#file      syscall/close_syscall.c
-#file      syscall/lseek_syscall.c
-#file      syscall/dup2_syscall.c
-#file      syscall/chdir_syscall.c
-#file      syscall/__getcwd_syscall.c
-#
-## Process Support
-#file      syscall/getpid_syscall.c
-#file      syscall/fork_syscall.c
-#file      syscall/execv_syscall.c
-#file      syscall/waitpid_syscall.c
-#file      syscall/_exit_syscall.c
+file      syscall/close_syscall.c
+file      syscall/lseek_syscall.c
+file      syscall/dup2_syscall.c
+file      syscall/chdir_syscall.c
+file      syscall/__getcwd_syscall.c
+
+# Process Support
+file      syscall/getpid_syscall.c
+file      syscall/fork_syscall.c
+file      syscall/execv_syscall.c
+file      syscall/waitpid_syscall.c
+file      syscall/_exit_syscall.c
 
 
 #
