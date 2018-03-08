@@ -18,28 +18,25 @@ extern int errno;
 
 /*
  *    files_table_create - create a new empty files table. May
- *                      return NULL on out-of-memory error.
- *                      Will set proper errno on error
+ *                      return proper errno on error.
  *
  */
-struct files_table *
-files_table_create (void)
+int
+files_table_create (struct files_table **nft)
 {
     struct files_table *ft;
 
     ft = kmalloc(sizeof(*ft));
 
-    if (ft == NULL) {
-        kprintf("[!] ERROR: [%d], files_table_create: out of memmory\n", ENOMEM);
-        // errno = ENOMEM;
-        return NULL;
-    }
+    if (ft == NULL)
+        return ENOMEM;
 
     spinlock_init(&ft->ft_lock);
 
     ft->next_fd = 3;
+    *nft = ft;
 
-    return ft;
+    return 0;
 
 }
 
@@ -49,22 +46,27 @@ files_table_create (void)
  *                                       STDIN, STDOUT, STDERR
  *
  */
-void
+int
 files_table_assign_default_handles (struct files_table *ft)
 {
     KASSERT(ft != NULL);
 
+    int result;
+
     /* create default file handles. STDIN, STDOUT, STDERR */
-    ft->fd_array[STDIN_FILENO] = file_handle_create_std_handle(STDIN_FILENO);
-    KASSERT(ft->fd_array[STDIN_FILENO] != NULL);
+    result = file_handle_create_std_handle(STDIN_FILENO, &ft->fd_array[STDIN_FILENO]);
+    if (result)
+        return result;
 
+    result = file_handle_create_std_handle(STDOUT_FILENO, &ft->fd_array[STDOUT_FILENO]);
+    if (result)
+        return result;
 
-    ft->fd_array[STDOUT_FILENO] = file_handle_create_std_handle(STDOUT_FILENO);
-    KASSERT(ft->fd_array[STDOUT_FILENO] != NULL);
+    result = file_handle_create_std_handle(STDERR_FILENO, &ft->fd_array[STDERR_FILENO]);
+    if (result)
+        return result;
 
-
-    ft->fd_array[STDERR_FILENO] = file_handle_create_std_handle(STDERR_FILENO);
-    KASSERT(ft->fd_array[STDERR_FILENO] != NULL);
+    return 0;
 }
 
 
@@ -78,15 +80,12 @@ files_table_copy (struct files_table *src, struct files_table **ret)
 {
 	KASSERT(src != NULL);
 
-    int i;
+    int result, i;
     struct files_table *ft;
 
-	ft = files_table_create();
-	if (ft == NULL) {
-        kprintf("[!] ERROR: [%d], files_table_copy: out of memmory\n", ENOMEM);
-        // errno = ENOMEM;
-		return -1;
-	}
+	result = files_table_create(&ft);
+	if (result)
+		return result;
 
     spinlock_acquire(&ft->ft_lock);
     for (i = 0; i < NR_OPEN_DEFAULT; ++i)
@@ -107,28 +106,27 @@ files_table_copy (struct files_table *src, struct files_table **ret)
 
 /*
  *    files_table_get_next_fd - function to get next available file descriptor.
- *                          return -1 if no file descriptor is available.
- *                          Will set proper errno on error
+ *                          return proper errno on error.
  */
 int
-files_table_get_next_fd (struct files_table *ft)
+files_table_get_next_fd (struct files_table *ft, int *fd)
 {
-    int fd, i;
+    int i;
     bool found_fd;
 
     found_fd = false;
 
     spinlock_acquire(&ft->ft_lock);
     if (ft->next_fd < NR_OPEN_DEFAULT) {
-        fd = ft->next_fd++;
+        *fd = ft->next_fd++;
         spinlock_release(&ft->ft_lock);
-        return fd;
+        return 0;
     }
 
     for (i = 3; i < NR_OPEN_DEFAULT; ++i) {
         if (ft->fd_array[i] == NULL) { /* TODO: CHECK IF FD_ARRAY IS INITIALIZED TO NULL BY DEFAULT */
             if (!found_fd) {
-                fd = i;
+                *fd = i;
                 continue;
             } else {
                 ft->next_fd = i;
@@ -138,12 +136,10 @@ files_table_get_next_fd (struct files_table *ft)
     }
     spinlock_release(&ft->ft_lock);
 
-    if (found_fd) {
-        return fd;
-    }
+    if (!found_fd)
+        return EMFILE;
 
-    // errno = EMFILE;
-    return -1;
+    return 0;
 }
 
 

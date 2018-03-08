@@ -33,12 +33,11 @@ struct file_handle {
  *
  *    file_handle_create            - create a new file handle pointing to a given file with
  *                                  a given file mode and at a given offset.
- *                                  May return NULL on out-of-memory error.
- *                                  Will set proper errno on error.
+ *                                  return proper errno on error.
  *
  *    file_handle_create_std_handle - helper function for creating standard file handles.
  *                                  Namely, STDIN, STDOUT and STDERR.
- *                                  May return NULL on error. Will set proper errno on error.
+ *                                  return proper errno on error.
  *
  *    file_handle_has_access        - check if process has proper acces to the file for it's operation
  *
@@ -47,10 +46,10 @@ struct file_handle {
  *
  *
  */
-struct file_handle * file_handle_create(struct vnode *file, int f_openflags, off_t f_pos);
-struct file_handle * file_handle_create_std_handle(unsigned int fd);
-bool                 file_handle_has_access(struct file_handle *fh, int flag);
-void                 file_handle_destroy(struct file_handle *);
+int  file_handle_create(struct vnode *file, int f_openflags, off_t f_pos, struct file_handle **fh);
+int  file_handle_create_std_handle(unsigned int fd, struct file_handle **fh);
+bool file_handle_has_access(struct file_handle *fh, int flag);
+void file_handle_destroy(struct file_handle *);
 
 
 

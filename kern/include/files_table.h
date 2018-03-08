@@ -24,7 +24,7 @@ struct files_table {
  * Functions in files_table.c:
  *
  *    files_table_create - create a new empty files table. May
- *                      return NULL on out-of-memory error. Will set proper errno on error.
+ *                      return proper errno on error.
  *
  *    files_table_assign_default_handles - helper function to create standard file handles.
  *                                       STDIN, STDOUT, STDERR
@@ -34,18 +34,17 @@ struct files_table {
  *                      an old one.
  *
  *    files_table_get_next_fd - function to get next available file descriptor.
- *                          return -1 if no file descriptor is available.
- *                          Will set proper errno on error.
+ *                          return proper errno on error..
  *
  *    files_table_destroy - dispose of a files table.
  *
  *
  */
-struct files_table *files_table_create (void);
-void                files_table_assign_default_handles (struct files_table *ft);
-int                 files_table_copy (struct files_table *src, struct files_table **ret);
-int                 files_table_get_next_fd (struct files_table *ft);
-void                files_table_destroy (struct files_table *);
+int  files_table_create (struct files_table **ft);
+int  files_table_assign_default_handles (struct files_table *ft);
+int  files_table_copy (struct files_table *src, struct files_table **ret);
+int  files_table_get_next_fd (struct files_table *ft, int *fd);
+void files_table_destroy (struct files_table *);
 
 
 

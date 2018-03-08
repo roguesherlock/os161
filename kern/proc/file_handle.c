@@ -23,22 +23,19 @@ extern int errno;
 /*
  *    file_handle_create - create a new file handle pointing to a given file with
  *                        a given file mode and at a given offset.
- *                        May return NULL on out-of-memory error.
+ *                        return proper errno on error.
  *
  */
-struct file_handle *
-file_handle_create (struct vnode *file, int f_openflags, off_t f_pos)
+int
+file_handle_create (struct vnode *file, int f_openflags, off_t f_pos, struct file_handle ** nfh)
 {
     KASSERT(file != NULL);
 
     struct file_handle *fh;
 
     fh = kmalloc(sizeof(*fh));
-    if (fh == NULL) {
-        kprintf("[!] ERROR: [%d], file_handle_create: out of memmory\n", ENOMEM);
-        // errno = ENOMEM;
-        return NULL;
-    }
+    if (fh == NULL)
+        return ENOMEM;
 
     spinlock_init(&fh->fh_lock);
 
@@ -49,18 +46,19 @@ file_handle_create (struct vnode *file, int f_openflags, off_t f_pos)
     fh->f_openflags = f_openflags & O_ACCMODE; /* Reduce flags to only 3 values R, W, RW */
     fh->f_pos = f_pos;
 
-    return fh;
+    *nfh = fh;
+    return 0;
 }
 
 
 /*
  * file_handle_create_std_handle - helper function for creating standard file handles
  *                                STDIN, STDOUT, STDERR
- *                                May return NULL on error. Will set proper errno on error.
+ *                                return proper errno on error.
  *
  */
-struct file_handle *
-file_handle_create_std_handle (unsigned int fd)
+int
+file_handle_create_std_handle (unsigned int fd, struct file_handle ** nfh)
 {
     char console_str [] = {'c', 'o', 'n', ':', '\0'};
     struct vnode *f;
@@ -78,17 +76,18 @@ file_handle_create_std_handle (unsigned int fd)
             mode = 0222; /* write only permission for everyone */
             break;
         default:
-            kprintf("[!] ERROR: [%d], file_handle_create_std_handle: Invalid fd supplied to file_handle\n", EINVAL);
-            return NULL;
+            return EINVAL;
     }
 
     result = vfs_open(console_str, openflags, mode, &f);
-    if (result) {
-        // errno = result;
-        return NULL;
-    }
+    if (result)
+        return result;
 
-    return file_handle_create(f, openflags, 0);
+    result = file_handle_create(f, openflags, 0, nfh);
+    if (result)
+        return result;
+
+    return 0;
 
 }
 

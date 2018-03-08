@@ -49,6 +49,7 @@
 #include <addrspace.h>
 #include <vnode.h>
 #include <files_table.h>
+#include <lib.h>
 
 
 /*
@@ -64,6 +65,7 @@ struct proc *
 proc_create(const char *name)
 {
 	struct proc *proc;
+	int result;
 
 	proc = kmalloc(sizeof(*proc));
 	if (proc == NULL) {
@@ -76,10 +78,11 @@ proc_create(const char *name)
 	}
 
 	/* files table fields */
-	proc->files = files_table_create();
-	if (proc->files == NULL) {
+	result = files_table_create(&proc->files);
+	if (result) {
 		kfree(proc->p_name);
 		kfree(proc);
+		kprintf("[!] Unable to create files table. Error code: %d\n", result);
 		return NULL;
 	}
 
@@ -207,6 +210,7 @@ struct proc *
 proc_create_runprogram(const char *name)
 {
 	struct proc *newproc;
+	int result;
 
 	newproc = proc_create(name);
 	if (newproc == NULL) {
@@ -231,7 +235,9 @@ proc_create_runprogram(const char *name)
 	}
 	spinlock_release(&curproc->p_lock);
 
-	files_table_assign_default_handles(newproc->files);
+	result = files_table_assign_default_handles(newproc->files);
+	if (result)
+		panic("[!] Unable to assign default file handles. Error Code: %d\n", result);
 
 	return newproc;
 }

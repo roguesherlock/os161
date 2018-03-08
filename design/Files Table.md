@@ -38,17 +38,16 @@ I decided eventually to restrict open files to NR_OPEN_DEFAULT (64 hard coded cu
 ## Functions on Files Table
 
 -   #### files_table_create
-    create a new empty files table. May return NULL on out-of-memory error.
-    Will set proper [errno][1] on error.
+    create a new empty files table. return proper [errno][1] on error.
 
-    `struct files_table *files_table_create(void);`
+    `int files_table_create(struct files_table **nft);`
 
 
 -   #### files_table_assign_default_handles
     helper function to create standard file handles. Namely STDIN, STDOUT and STDERR.
-    May panic if unable to assign any of the std file handles.
+    return proper [errno][1] on error.
 
-    `void files_table_assign_default_handles (struct files_table *ft)`
+    `int files_table_assign_default_handles (struct files_table *ft)`
 
 
 -   #### files_table_copy
@@ -59,10 +58,9 @@ I decided eventually to restrict open files to NR_OPEN_DEFAULT (64 hard coded cu
 
 -   #### files_table_get_next_fd
     function to get next available file descriptor.
-    return -1 if no file descriptor is available.
-    Will set proper [errno][1] on error.
+    return proper [errno][1] on error.
 
-    `int files_table_get_next_fd (struct files_table *ft);`
+    `int files_table_get_next_fd (struct files_table *ft, int *fd);`
 
 
 -   #### files_table_destroy

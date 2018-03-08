@@ -44,16 +44,16 @@
 
 -   #### file_handle_create
     create a new file handle pointing to a given file with a given file mode and at a given offset.
-    May return NULL on out-of-memory error. Will set proper [errno][1] on error.
+    return proper [errno][1] on error.
 
-    `struct file_handle *file_handle_create(struct vnode *file, enum file_modes f_mode, unsigned int f_pos);`
+    `int file_handle_create(struct vnode *file, enum file_modes f_mode, unsigned int f_pos, struct file_handle **nfh);`
 
 
 -   #### file_handle_create_std_handle
     helper function for creating standard file handles. Namely STDIN, STDOUT and STDERR.
-    May return NULL on error. Will set proper [errno][1] on error.
+    return proper [errno][1] on error.
 
-    `static struct file_handle * file_handle_create_std_handle(unsigned int fd);`
+    `int file_handle_create_std_handle(unsigned int fd, struct file_handle **nfh);`
 
 
 -   #### file_handle_has_access
