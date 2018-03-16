@@ -28,7 +28,9 @@ sys_close(int fd, int32_t *result)
         return EBADF;
 
     file_handle_destroy(fh);
+    spinlock_acquire(&curproc->p_lock);
     curproc->files->fd_array[fd] = NULL;
+    spinlock_release(&curproc->p_lock);
     *result = 0;
 
     return 0;
