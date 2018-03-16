@@ -27,43 +27,50 @@
  * SUCH DAMAGE.
  */
 
-#ifndef _SYSCALL_H_
-#define _SYSCALL_H_
-
-
-#include <cdefs.h> /* for __DEAD */
-struct trapframe; /* from <machine/trapframe.h> */
-
 /*
- * The system call dispatcher.
+ * dup2test.c
+ *
+ * 	Tests whether dup2 syscalls works
+ * 	This should run correctly when read, write, open is
+ * 	implemented correctly.
+ *
  */
 
-void syscall(struct trapframe *tf);
-
-/*
- * Support functions.
- */
-
-/* Helper for fork(). You write this. */
-void enter_forked_process(struct trapframe *tf);
-
-/* Enter user mode. Does not return. */
-__DEAD void enter_new_process(int argc, userptr_t argv, userptr_t env,
-		       vaddr_t stackptr, vaddr_t entrypoint);
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+#include <unistd.h>
+#include <err.h>
+#include <fcntl.h>
+#include <test161/test161.h>
 
 
-/*
- * Prototypes for IN-KERNEL entry points for system call implementations.
- */
+#define jibberishdir "/this_dir_does_not_exists/"
 
-int sys_reboot(int code);
-int sys___time(userptr_t user_seconds, userptr_t user_nanoseconds);
-int sys_open(const char *filename, int flags, int32_t *fd);
-int sys_read(int fd, void *buf, size_t buflen, int32_t *read);
-int sys_write(int fd, const void *buf, size_t buflen, int32_t *wrote);
-int sys_lseek(int fd, off_t pos, int whence, int32_t *retval, int32_t *retval2);
-int sys_close(int fd, int32_t *result);
-int sys_dup2(int oldfd, int newfd, int32_t *result); /* TODO: make return value names consistent */
-int sys_chdir(const char *pathname, int32_t *retval);
+int
+main(int argc, char **argv)
+{
 
-#endif /* _SYSCALL_H_ */
+	// 23 Mar 2012 : GWA : Assume argument passing is *not* supported.
+
+	(void) argc;
+	(void) argv;
+
+	int result;
+
+	result = chdir(jibberishdir);
+	if (result == 0)
+		err(1, "I was able to change fake dir. Is your chdir syscall working right?\n");
+
+	result = chdir("./bin");
+	if (result)
+		err(1, "I was unable to change to bin directory. Is your chdir syscall working right?\n");
+
+	/* I should verify here but I still haven't implemented getcwd */
+
+	nprintf(".");
+	nprintf("\n");
+
+	success(TEST161_SUCCESS, SECRET, "/testbin/chdirtest");
+	return 0;
+}
