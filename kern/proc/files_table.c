@@ -33,6 +33,9 @@ files_table_create (struct files_table **nft)
 
     spinlock_init(&ft->ft_lock);
 
+    for (i = 0, i < NR_OPEN_DEFAULT; ++i)
+        ft->fd_array[i] = NULL;
+
     ft->next_fd = 3;
     *nft = ft;
 
@@ -124,7 +127,7 @@ files_table_get_next_fd (struct files_table *ft, int *fd)
     }
 
     for (i = 3; i < NR_OPEN_DEFAULT; ++i) {
-        if (ft->fd_array[i] == NULL) { /* TODO: CHECK IF FD_ARRAY IS INITIALIZED TO NULL BY DEFAULT */
+        if (ft->fd_array[i] == NULL) {
             if (!found_fd) {
                 *fd = i;
                 continue;
