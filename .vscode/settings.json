@@ -1,0 +1,27 @@
+{
+    "spellright.language": "en",
+    "spellright.documentTypes": [
+        "markdown",
+        "latex",
+        "plaintext"
+    ],
+    "files.associations": {
+        "unistd.h": "c",
+        "files_table.h": "c",
+        "current.h": "c",
+        "copyinout.h": "c",
+        "spinlock.h": "c",
+        "file_handle.h": "c",
+        "types.h": "c",
+        "lib.h": "c",
+        "errno.h": "c",
+        "vnode.h": "c",
+        "synch.h": "c",
+        "fcntl.h": "c",
+        "time.h": "c",
+        "test161.h": "c",
+        "err.h": "c",
+        "cpu.h": "c",
+        "syscall.h": "c"
+    }
+}

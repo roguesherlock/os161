@@ -64,6 +64,13 @@ struct proc {
 	char *p_name;			/* Name of this process */
 	struct spinlock p_lock;		/* Lock for this structure */
 	unsigned p_numthreads;		/* Number of threads in this process */
+	pid_t pid;				/* Process Id */
+	pid_t ppid;				/* Process's parent ID */
+	int exit_status;			/* Process's exit status */
+	int exit_code;				/* Process's exit code */
+
+	struct cv *p_wait;			/* for waitpid */
+	struct lock *p_wait_lock;
 
 	/* VM */
 	struct addrspace *p_addrspace;	/* virtual address space */
@@ -98,6 +105,23 @@ struct addrspace *proc_getas(void);
 
 /* Change the address space of the current process, and return the old one. */
 struct addrspace *proc_setas(struct addrspace *);
+
+
+struct pnode {
+	struct pnode *prev;
+	pid_t pid;
+	struct proc *proc;
+	struct pnode *next;
+}
+
+/* Process Table */
+struct ptable {
+
+	struct pnode *head;		/* pointer to first process in table */
+	unsigned pnum;			/* number of processess */
+
+}
+
 
 
 #endif /* _PROC_H_ */
