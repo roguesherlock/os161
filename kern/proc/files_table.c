@@ -25,6 +25,7 @@ int
 files_table_create (struct files_table **nft)
 {
     struct files_table *ft;
+    int i;
 
     ft = kmalloc(sizeof(*ft));
 
@@ -33,7 +34,7 @@ files_table_create (struct files_table **nft)
 
     spinlock_init(&ft->ft_lock);
 
-    for (i = 0, i < NR_OPEN_DEFAULT; ++i)
+    for (i = 0; i < NR_OPEN_DEFAULT; ++i)
         ft->fd_array[i] = NULL;
 
     ft->next_fd = 3;
