@@ -112,7 +112,7 @@ struct pnode {
 	pid_t pid;
 	struct proc *proc;
 	struct pnode *next;
-}
+};
 
 /* Process Table */
 struct ptable {
@@ -120,7 +120,7 @@ struct ptable {
 	struct pnode *head;		/* pointer to first process in table */
 	unsigned pnum;			/* number of processess */
 
-}
+};
 
 
 
