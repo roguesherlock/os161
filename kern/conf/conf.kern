@@ -401,6 +401,7 @@ file      syscall/chdir_syscall.c
 file      syscall/__getcwd_syscall.c
 
 # Process Support
+file      proc/proc_table.c
 file      syscall/getpid_syscall.c
 file      syscall/fork_syscall.c
 file      syscall/execv_syscall.c

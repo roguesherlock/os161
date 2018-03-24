@@ -37,6 +37,7 @@
  */
 
 #include <spinlock.h>
+#include <synch.h>
 
 struct addrspace;
 struct thread;
@@ -61,15 +62,17 @@ struct files_table;
  * without sleeping.
  */
 struct proc {
-	char *p_name;			/* Name of this process */
+	char *p_name;				/* Name of this process */
 	struct spinlock p_lock;		/* Lock for this structure */
 	unsigned p_numthreads;		/* Number of threads in this process */
-	pid_t pid;				/* Process Id */
-	pid_t ppid;				/* Process's parent ID */
+	pid_t pid;					/* Process Id */
+	pid_t ppid;					/* Process's parent ID */
+	struct proc *parent;		/* parent */
 	int exit_status;			/* Process's exit status */
 	int exit_code;				/* Process's exit code */
 
-	struct cv *p_wait;			/* for waitpid */
+	/* for waitpid */
+	struct cv *p_wait;
 	struct lock *p_wait_lock;
 
 	/* VM */
@@ -79,6 +82,13 @@ struct proc {
 	struct vnode *p_cwd;		/* current working directory */
 
 	struct files_table *files; 	/* files table */
+
+	/* os/161 is single threaded.
+	 * Although, kproc has multiple threads.
+	 * But, I'm not adding threadlist just for a single thread
+	 * as I'll have to change the whole semantics
+	 */
+	struct thread *p_thread;	/* process thread */
 
 };
 
@@ -106,22 +116,7 @@ struct addrspace *proc_getas(void);
 /* Change the address space of the current process, and return the old one. */
 struct addrspace *proc_setas(struct addrspace *);
 
-
-struct pnode {
-	struct pnode *prev;
-	pid_t pid;
-	struct proc *proc;
-	struct pnode *next;
-};
-
-/* Process Table */
-struct ptable {
-
-	struct pnode *head;		/* pointer to first process in table */
-	unsigned pnum;			/* number of processess */
-
-};
-
-
+/* copy src process to dst process. dst process has new unique pid.*/
+int proc_copy(struct proc *src, struct proc **dst);
 
 #endif /* _PROC_H_ */
