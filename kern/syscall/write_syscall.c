@@ -30,6 +30,7 @@ sys_write(int fd, const void *buf, size_t buflen, int32_t *wrote)
     struct uio wuio;
     struct file_handle *fh;
 
+    result = 0;
     *wrote = -1;
 
     if (fd < 0 || fd >= NR_OPEN_DEFAULT || (fh = curproc->files->fd_array[fd]) == NULL) {
@@ -44,23 +45,24 @@ sys_write(int fd, const void *buf, size_t buflen, int32_t *wrote)
         return EACCES;
     }
 
+    rwlock_acquire_write(fh->f_lock);
+
     wiov.iov_ubase = (userptr_t) buf;
     wiov.iov_len = buflen;
     wuio.uio_iov = &wiov;
     wuio.uio_iovcnt = 1;
+    spinlock_acquire(&fh->fh_lock);
     wuio.uio_offset = fh->f_pos;
+    spinlock_release(&fh->fh_lock);
     wuio.uio_resid = buflen;
     wuio.uio_segflg = UIO_USERSPACE;
     wuio.uio_rw = UIO_WRITE;
     wuio.uio_space = curproc->p_addrspace;
 
-    rwlock_acquire_write(fh->f_lock);
 
     result = VOP_WRITE(fh->file, &wuio);
-    if (result) {
-        rwlock_release_write(fh->f_lock);
-        return result;
-    }
+    if (result)
+        goto done;
 
     *wrote = buflen - wuio.uio_resid;
 
@@ -68,9 +70,9 @@ sys_write(int fd, const void *buf, size_t buflen, int32_t *wrote)
     fh->f_pos = wuio.uio_offset;
     spinlock_release(&fh->fh_lock);
 
-    rwlock_release_write(fh->f_lock);
-
+done:
 // ENOSPC
 // EIO
-    return 0;
+    rwlock_release_write(fh->f_lock);
+    return result;
 }
