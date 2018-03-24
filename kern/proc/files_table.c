@@ -12,8 +12,6 @@
 #include <file_handle.h>
 #include <files_table.h>
 
-extern int errno;
-
 
 
 /*
@@ -91,7 +89,6 @@ files_table_copy (struct files_table *src, struct files_table **ret)
 	if (result)
 		return result;
 
-    spinlock_acquire(&ft->ft_lock);
     for (i = 0; i < NR_OPEN_DEFAULT; ++i)
         if (src->fd_array[i] != NULL) {
             ft->fd_array[i] = src->fd_array[i];
@@ -102,7 +99,6 @@ files_table_copy (struct files_table *src, struct files_table **ret)
         }
 
     ft->next_fd = src->next_fd;
-    spinlock_release(&ft->ft_lock);
 
 	*ret = ft;
 	return 0;
@@ -154,7 +150,8 @@ files_table_get_next_fd (struct files_table *ft, int *fd)
 void
 files_table_destroy (struct files_table *ft)
 {
-    KASSERT(ft != NULL);
+    if (ft == NULL)
+        return;
 
     int i;
 
