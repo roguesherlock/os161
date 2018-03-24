@@ -163,7 +163,11 @@ syscall(struct trapframe *tf)
 							(size_t)tf->tf_a1,
 							&retval);
 		break;
-		
+
+		case SYS_fork:
+		err = sys_fork(tf, &retval);
+		break;
+
 	    default:
 		kprintf("Unknown syscall %d\n", callno);
 		err = ENOSYS;
@@ -201,15 +205,59 @@ syscall(struct trapframe *tf)
 }
 
 /*
+ * helper to enter_forked_process.
+ *
+ */
+void
+help_enter_forked_process(void *data1, unsigned long data2)
+{
+	(void) data2;
+	enter_forked_process((struct trapframe *)data1);
+}
+
+
+/*
  * Enter user mode for a newly forked process.
  *
- * This function is provided as a reminder. You need to write
- * both it and the code that calls it.
- *
- * Thus, you can trash it and do things another way if you prefer.
  */
 void
 enter_forked_process(struct trapframe *tf)
 {
-	(void)tf;
+	KASSERT(curthread != NULL);
+	KASSERT(curthread->t_curspl == 0);
+	KASSERT(curthread->t_iplhigh_count == 0);
+
+	/* return 0 and signal no error */
+	tf->tf_v0 = 0;
+	tf->tf_a3 = 0;
+
+	tf->tf_epc += 4;
+
+	/* because we are defining trapframe here, it'll be on the kernel's own stack */
+	/* I previously thought that the trapframe must be on the top of the stack */
+	/* but it should just be in the kernel's stack. Not on the top of stack */
+	/* I was previously putting it on top of stack */
+	/* And, that overwrote the switchframe, whcih was causing errors for me */
+	/* I'll need to debug more */
+	struct trapframe ntf = *tf;
+	kfree(tf);
+
+	// vaddr_t stacktop;
+	// struct trapframe *ntf;
+
+	// /*
+	//  * MIPS stacks grow down. t_stack is just a hunk of memory, so
+	//  * get the other end of it. Then set up a trapframe on the
+	//  * top of the stack.
+	//  */
+	// stacktop = ((vaddr_t)curthread->t_stack) + STACK_SIZE;
+	// ntf = ((struct trapframe *) stacktop) - 1;
+
+	// /* Zero out the trapframe. */
+	// bzero(ntf, sizeof(*ntf));
+
+	// copy_tf(tf, ntf);
+
+	/* enter user mode */
+	mips_usermode(&ntf);
 }

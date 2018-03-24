@@ -27,52 +27,64 @@
  * SUCH DAMAGE.
  */
 
-#ifndef _SYSCALL_H_
-#define _SYSCALL_H_
-
-
-#include <cdefs.h> /* for __DEAD */
-struct trapframe; /* from <machine/trapframe.h> */
-
 /*
- * The system call dispatcher.
+ * readtest.c
+ *
+ * 	Tests whether read syscalls works
+ * 	This should run correctly when read is
+ * 	implemented correctly.
+ *
+ * NOTE: While checking, this test only checks the first 31 characters.
  */
-
-void syscall(struct trapframe *tf);
-
-/*
- * Support functions.
- */
-
-/* Helper for fork(). You write this. */
-void help_enter_forked_process(void * data1, unsigned long data2);
-void enter_forked_process(struct trapframe *tf);
-
-/* Enter user mode. Does not return. */
-__DEAD void enter_new_process(int argc, userptr_t argv, userptr_t env,
-		       vaddr_t stackptr, vaddr_t entrypoint);
+#include <stdlib.h>
+#include <stdio.h>
+#include <err.h>
+#include <fcntl.h>
+#include <test161/test161.h>
+#include <stdarg.h>
+#include <unistd.h>
+#include <errno.h>
+#include <string.h>
 
 
-/*
- * Prototypes for IN-KERNEL entry points for system call implementations.
- */
+int
+main(int argc, char **argv)
+{
 
-int sys_reboot(int code);
-int sys___time(userptr_t user_seconds, userptr_t user_nanoseconds);
-int sys_open(const char *filename, int flags, int32_t *fd);
-int sys_read(int fd, void *buf, size_t buflen, int32_t *read);
-int sys_write(int fd, const void *buf, size_t buflen, int32_t *wrote);
-int sys_lseek(int fd, off_t pos, int whence, int32_t *retval, int32_t *retval2);
-int sys_close(int fd, int32_t *result);
-int sys_dup2(int oldfd, int newfd, int32_t *result); /* TODO: make return value names consistent */
-int sys_chdir(const char *pathname, int32_t *retval);
-int sys___getcwd(char *buf, size_t buflen, int32_t *retval);
-int sys_fork(struct trapframe *tf, int32_t *ret);
+	// 23 Mar 2012 : GWA : Assume argument passing is *not* supported.
 
-/*
- * helper functions. Defined in various syscalls.
- */
-// void copy_tf(struct trapframe *src, struct trapframe *dst); /* defined in fork_syscall.c */
+	(void) argc;
+	(void) argv;
 
+	const char * data1 = "Hello from the child process!\n";
+	const char * data2 = "Hello from the parent process!\n";
+	const char * data3 = "I don't understand what's wrong here\n";
+	const char * data4 = "Anyone, please help me here\n";
 
-#endif /* _SYSCALL_H_ */
+	size_t len1 = strlen(data1);
+	size_t len2 = strlen(data2);
+	size_t len3 = strlen(data3);
+	size_t len4 = strlen(data4);
+
+   	pid_t pid = fork();
+   	if (pid == -1) {
+      	err(1, "fork failed");
+   	} else if (pid == 0) {
+		write(STDOUT_FILENO, data1, len1);
+		write(STDOUT_FILENO, data3, len3);
+      	// printf("Hello from the child process!\n");
+		// printf("I don't understand what's wrong here\n");
+		// printf("I really don't\n");
+   	} else {
+		   write(STDOUT_FILENO, data2, len2);
+		   write(STDOUT_FILENO, data4, len4);
+		// printf("Hello from the parent process!\n");
+		// printf("Got Pid: %d\n", (int) pid);
+		// printf("Anyone, please help me here\n");
+		// int status;
+      	// (void)waitpid(pid, &status, 0);
+   	}
+
+	success(TEST161_SUCCESS, SECRET, "/testbin/simple_forktest");
+	return 0;
+}
