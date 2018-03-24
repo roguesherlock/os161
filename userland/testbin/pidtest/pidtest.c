@@ -27,53 +27,32 @@
  * SUCH DAMAGE.
  */
 
-#ifndef _SYSCALL_H_
-#define _SYSCALL_H_
-
-
-#include <cdefs.h> /* for __DEAD */
-struct trapframe; /* from <machine/trapframe.h> */
-
 /*
- * The system call dispatcher.
+ * pidtest.c
+ *
+ * 	Tests whether getpid syscall works
  */
 
-void syscall(struct trapframe *tf);
-
-/*
- * Support functions.
- */
-
-/* Helper for fork(). You write this. */
-void help_enter_forked_process(void * data1, unsigned long data2);
-void enter_forked_process(struct trapframe *tf);
-
-/* Enter user mode. Does not return. */
-__DEAD void enter_new_process(int argc, userptr_t argv, userptr_t env,
-		       vaddr_t stackptr, vaddr_t entrypoint);
+#include <sys/types.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <unistd.h>
+#include <test161/test161.h>
 
 
-/*
- * Prototypes for IN-KERNEL entry points for system call implementations.
- */
 
-int sys_reboot(int code);
-int sys___time(userptr_t user_seconds, userptr_t user_nanoseconds);
-int sys_open(const char *filename, int flags, int32_t *fd);
-int sys_read(int fd, void *buf, size_t buflen, int32_t *read);
-int sys_write(int fd, const void *buf, size_t buflen, int32_t *wrote);
-int sys_lseek(int fd, off_t pos, int whence, int32_t *retval, int32_t *retval2);
-int sys_close(int fd, int32_t *result);
-int sys_dup2(int oldfd, int newfd, int32_t *result); /* TODO: make return value names consistent */
-int sys_chdir(const char *pathname, int32_t *retval);
-int sys___getcwd(char *buf, size_t buflen, int32_t *retval);
-int sys_fork(struct trapframe *tf, int32_t *ret);
-pid_t sys_getpid(void); /* as getpid does not fail, there's no point in returning with status */
+int
+main(int argc, char **argv)
+{
 
-/*
- * helper functions. Defined in various syscalls.
- */
-// void copy_tf(struct trapframe *src, struct trapframe *dst); /* defined in fork_syscall.c */
+	// 23 Mar 2012 : GWA : Assume argument passing is *not* supported.
 
+	(void) argc;
+	(void) argv;
 
-#endif /* _SYSCALL_H_ */
+	pid_t pid = getpid();
+	printf("pid: %d", (int) pid);
+
+	success(TEST161_SUCCESS, SECRET, "/testbin/pidtest");
+	return 0;
+}
