@@ -22,6 +22,18 @@
         "test161.h": "c",
         "err.h": "c",
         "cpu.h": "c",
-        "syscall.h": "c"
-    }
+        "syscall.h": "c",
+        "addrspace.h": "c",
+        "opt-dumbvm.h": "c",
+        "opt-noasserts.h": "c",
+        "proc.h": "c",
+        "proc_table.h": "c",
+        "threadprivate.h": "c",
+        "string.h": "c",
+        "semfs.h": "c",
+        "stdlib.h": "c",
+        "stdio.h": "c",
+        "cdefs.h": "c"
+    },
+    "C_Cpp.errorSquiggles": "Disabled"
 }
