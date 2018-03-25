@@ -37,12 +37,19 @@
  */
 
 #include <spinlock.h>
+#include <wchan.h>
 #include <synch.h>
 
 struct addrspace;
 struct thread;
 struct vnode;
 struct files_table;
+
+/* States process can be in */
+typedef enum {
+	PS_ACTIVE,
+	PS_INACTIVE
+}proc_state;
 
 /*
  * Process structure.
@@ -69,11 +76,10 @@ struct proc {
 	pid_t ppid;					/* Process's parent ID */
 	struct proc *parent;		/* parent */
 	int exit_status;			/* Process's exit status */
-	int exit_code;				/* Process's exit code */
+	proc_state p_state;			/* Process's active status */
 
 	/* for waitpid */
-	struct cv *p_wait;
-	struct lock *p_wait_lock;
+	struct wchan *p_wait;
 
 	/* VM */
 	struct addrspace *p_addrspace;	/* virtual address space */
@@ -83,10 +89,12 @@ struct proc {
 
 	struct files_table *files; 	/* files table */
 
-	/* os/161 is single threaded.
+	/*
+	 * os/161 is single threaded.
 	 * Although, kproc has multiple threads.
 	 * But, I'm not adding threadlist just for a single thread
 	 * as I'll have to change the whole semantics
+	 * 
 	 */
 	struct thread *p_thread;	/* process thread */
 

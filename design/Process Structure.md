@@ -6,14 +6,15 @@
 ---------------------------------------------------------
 |Process Structure                                      |
 |-------------------------------------------------------|
+|   spinlock for synchronization                        |
 |   Reference to process thread                         |
 |   Reference to process's parent                       |
 |   File Table: maintains refrence to file handles.     |
 |   PID: Process ID                                     |
 |   PPID: Parent Process ID                             |
-|   Exit Status: Did the process exit or not?           |
-|   Exit Code: If process exited, what is exit code?    |
-|   CVs: for waitpid                                    |
+|   Exit Status: Process's exit status                  |
+|   p_state: Process's active status                    |
+|   wchan: for waitpid                                  |
 ---------------------------------------------------------
 
 

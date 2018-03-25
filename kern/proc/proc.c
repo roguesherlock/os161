@@ -53,6 +53,7 @@
 #include <synch.h>
 #include <proc_table.h>
 #include <kern/errno.h>
+#include <thread.h>
 
 /*
  * The process for the kernel; this holds all the kernel-only threads.
@@ -84,50 +85,29 @@ proc_create(const char *name)
 		return NULL;
 	}
 
-	proc->p_wait = cv_create(name);
+	proc->p_wait = wchan_create(name);
 	if (proc->p_wait == NULL) {
 		kfree(proc->p_name);
 		kfree(proc);
 		return NULL;
 	}
 
-	proc->p_wait_lock = lock_create(name);
-	if (proc->p_wait_lock == NULL) {
-		cv_destroy(proc->p_wait);
-		kfree(proc->p_name);
-		kfree(proc);
-		return NULL;
-	}
-
-	if (is_kproc)
+	if (is_kproc) {
 		proc->pid = 1;
-	else {
+		proc->parent = NULL;
+		proc->ppid = 0;
+	} else {
+		proc->parent = curproc;
+		proc->ppid = curproc->pid;
 		result = get_pid(&proc->pid);
 		if (result) {
-			lock_destroy(proc->p_wait_lock);
-			cv_destroy(proc->p_wait);
+			wchan_destroy(proc->p_wait);
 			kfree(proc->p_name);
 			kfree(proc);
 			return NULL;
 		}
 	}
 
-	// /* files table fields */
-	// result = files_table_create(&proc->files);
-	// if (result) {
-	// 	rel_pid(proc->pid);
-	// 	lock_destroy(proc->p_wait_lock);
-	// 	cv_destroy(proc->p_wait);
-	// 	kfree(proc->name);
-	// 	kfree(proc);
-	// 	kprintf("[!] Unable to create files table. Error code: %d\n", result);
-	// 	return NULL;
-	// }
-
-	if (!is_kproc) {
-		proc->parent = curproc;
-		proc->ppid = curproc->pid;
-	}
 	proc->p_numthreads = 0;
 	spinlock_init(&proc->p_lock);
 
@@ -142,6 +122,9 @@ proc_create(const char *name)
 
 	/* process thread */
 	proc->p_thread = NULL;
+
+	/* process state */
+	proc->p_state = PS_INACTIVE;
 
 	return proc;
 }
@@ -166,6 +149,7 @@ proc_destroy(struct proc *proc)
 	KASSERT(proc != NULL);
 	KASSERT(proc != kproc);
 
+	proc->p_state = PS_INACTIVE;
 	proc->p_thread = NULL;
 	proc->parent = NULL;
 
@@ -231,8 +215,7 @@ proc_destroy(struct proc *proc)
 
 	files_table_destroy(proc->files);
 	rel_pid(proc->pid);
-	lock_destroy(proc->p_wait_lock);
-	cv_destroy(proc->p_wait);
+	wchan_destroy(proc->p_wait);
 
 	KASSERT(proc->p_numthreads == 0);
 	spinlock_cleanup(&proc->p_lock);
@@ -255,6 +238,15 @@ proc_bootstrap(void)
 	files_table_create(&kproc->files);
 	if(kproc->files == NULL)
 		panic("files_table_create for kproc failed\n");
+
+	kproc->p_state = PS_ACTIVE;
+
+	/* bypass set_proc and just set kproc in process table
+	 * Note: kproc is not accounted for in number of active process
+	 */
+	spinlock_acquire(&pt->pt_lock);
+	pt->p_array[kproc->pid] = kproc;
+	spinlock_release(&pt->pt_lock);
 }
 
 /*
@@ -304,6 +296,8 @@ proc_create_runprogram(const char *name)
 		panic("[!] Unable to assign default file handles. Error Code: %d\n", result);
 
 	set_proc(newproc->pid, newproc);
+
+	newproc->p_state = PS_ACTIVE;
 
 	return newproc;
 }
@@ -359,6 +353,8 @@ proc_remthread(struct thread *t)
 	spinlock_acquire(&proc->p_lock);
 	KASSERT(proc->p_numthreads > 0);
 	proc->p_numthreads--;
+	if (proc != kproc)
+		proc->p_thread = NULL;
 	spinlock_release(&proc->p_lock);
 
 	spl = splhigh();
@@ -425,26 +421,29 @@ proc_copy(struct proc *src, struct proc **dst)
     newp->parent = src;
     newp->ppid = src->pid;
 
-    // spinlock_acquire(&src->p_lock);
     result = as_copy(src->p_addrspace, &newp->p_addrspace);
     if (result)
         goto err;
-    // spinlock_release(&src->p_lock);
 
     result = files_table_copy(src->files, &newp->files);
     if (result)
         goto err;
 
+	spinlock_acquire(&src->p_lock);
 	if (src->p_cwd != NULL) {
 		VOP_INCREF(src->p_cwd);
 		newp->p_cwd = src->p_cwd;
 	}
+	spinlock_release(&src->p_lock);
+
+    /* make process active */
+    newp->p_state = PS_ACTIVE;
 
 	*dst = newp;
 
     return 0;
 
 err:
-    spinlock_release(&src->p_lock);
+	proc_destroy(newp);
     return result;
 }
