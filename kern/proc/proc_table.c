@@ -4,10 +4,11 @@
 #include <kern/unistd.h>
 #include <spinlock.h>
 #include <synch.h>
+#include <current.h>
 #include <limits.h>
 #include <proc_table.h>
 
-#define PID_IN(X) (PID_MIN + ((X) % MAX_ACTIVE_PROC))
+#define PID_IN(X) ((X) < MAX_ACTIVE_PROC ? (X) : PID_MIN + ((X) % (MAX_ACTIVE_PROC - PID_MIN)))
 
 extern struct proc_table *pt;
 
@@ -27,7 +28,6 @@ proc_table_create(struct proc_table **pt)
 
     spinlock_init(&npt->pt_lock);
     npt->pnum = 0;
-    npt->pid_count = 0;
     npt->next_pid = PID_MIN;
 
     for (i = 0; i < MAX_ACTIVE_PROC; ++i)
@@ -38,22 +38,46 @@ proc_table_create(struct proc_table **pt)
 /*
  *  proc_table_destroy - destroy process table
  *                      calls proc_destroy on every active process
+ *                      except kproc
  */
 void
 proc_table_destroy(struct proc_table *pt)
 {
-    KASSERT (pt != NULL);
+    KASSERT(pt != NULL);
+    /* only kproc is allowed to call */
+    KASSERT(curthread->t_proc == kproc);
 
     int i;
 
-    spinlock_acquire(&pt->pt_lock);
-    for (i = PID_MIN; i < MAX_ACTIVE_PROC; ++i)
-        if (pt->p_array[i] != NULL)
-            proc_destroy(pt->p_array[i]);
-    spinlock_release(&pt->pt_lock);
+    if (pt->pnum != 0) {
+        spinlock_acquire(&pt->pt_lock);
+        for (i = PID_MIN; i < MAX_ACTIVE_PROC; ++i)
+            if (pt->p_array[i] != NULL)
+                proc_destroy(pt->p_array[i]);
+        spinlock_release(&pt->pt_lock);
+    }
 
     spinlock_cleanup(&pt->pt_lock);
     kfree(pt);
+}
+
+
+/*
+ *  proc_table_is_empty - checks weather proc_table is empty or not
+ *
+ */
+bool
+proc_table_is_empty()
+{
+    bool is_empty;
+
+    KASSERT(pt != NULL);
+
+    spinlock_acquire(&pt->pt_lock);
+    is_empty = (pt->pnum == 0);
+    spinlock_release(&pt->pt_lock);
+
+    return is_empty;
 }
 
 
@@ -66,28 +90,28 @@ int
 set_proc(pid_t pid, struct proc *p)
 {
     int result;
-    // struct proc_table *pt;
 
     result = 0;
-    // pt = &PROC_TABLE;
 
     KASSERT(pt != NULL);
 
-    if (pid >= PID_MAX)
+    if (pid < PID_MIN || pid >= PID_MAX)
         return EINVAL;
 
     if (p == NULL)
         return EFAULT;
 
     spinlock_acquire(&pt->pt_lock);
-
-    if (pt->p_array[PID_IN(pid)] != NULL)
+    if (pt->p_array[PID_IN(pid)] != NULL) {
         result = EINVAL;
-    else
-        pt->p_array[PID_IN(pid)] = p;
-    pt->pnum++;
-    spinlock_release(&pt->pt_lock);
+        goto done;
+    }
 
+    pt->p_array[PID_IN(pid)] = p;
+    pt->pnum++;
+
+done:
+    spinlock_release(&pt->pt_lock);
     return result;
 }
 
@@ -98,25 +122,23 @@ set_proc(pid_t pid, struct proc *p)
  *
  */
 int
-get_proc(pid_t pid, struct proc *p)
+get_proc(pid_t pid, struct proc **p)
 {
-    // struct proc_table *pt;
-    // struct proc *proc;
-
-    // pt = &PROC_TABLE;
-
     KASSERT(pt != NULL);
 
-    if (pid >= PID_MAX)
-        return EINVAL;
+    struct proc *np;
+
+    if (pid < PID_MIN || pid >= PID_MAX)
+        return ESRCH;
 
     spinlock_acquire(&pt->pt_lock);
-    p = pt->p_array[PID_IN(pid)];
+    np = pt->p_array[PID_IN(pid)];
     spinlock_release(&pt->pt_lock);
 
-    if (p == NULL)
+    if (np == NULL)
         return ESRCH;
-    // p = proc;
+
+    *p = np;
 
     return 0;
 }
@@ -132,24 +154,30 @@ int
 get_pid(pid_t *pid)
 {
     int result;
-    // struct proc_table *pt;
     pid_t npid;
 
     result = 0;
-    // pt = &PROC_TABLE;
 
     KASSERT(pt != NULL);
 
     spinlock_acquire(&pt->pt_lock);
-    if (pt->pid_count++ >= PID_MAX)
-        return ENPROC;
+    /* is process table full */
+    if (pt->pnum >= (MAX_ACTIVE_PROC - PID_MIN)) {
+        result = ENPROC;
+        goto done;
+    }
+    /* wrap around */
+    if ((pt->next_pid) >= PID_MAX)
+        pt->next_pid = PID_MIN;
+
     npid = pt->next_pid++;
     while (pt->p_array[PID_IN(npid)] != NULL)
         npid = pt->next_pid++;
-    spinlock_release(&pt->pt_lock);
 
     *pid = npid;
 
+done:
+    spinlock_release(&pt->pt_lock);
     return result;
 }
 
@@ -163,18 +191,18 @@ struct proc *
 rel_pid(pid_t pid)
 {
     struct proc *p;
-    // struct proc_table *pt;
-
-    // pt = &PROC_TABLE;
 
     KASSERT(pt != NULL);
 
-    if (pid >= PID_MAX)
+    if (pid < PID_MIN || pid >= PID_MAX)
         return NULL;
 
     spinlock_acquire(&pt->pt_lock);
     p = pt->p_array[PID_IN(pid)];
-    pt->pnum--;
+    pt->p_array[PID_IN(pid)] = NULL;
+    /* if there was process to begin with, decrese active process counter */
+    if (p)
+        pt->pnum--;
     spinlock_release(&pt->pt_lock);
 
     return p;

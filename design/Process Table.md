@@ -21,7 +21,6 @@
 -------------------------------------------------------------------------------------
 |	pt_lock                     /* for synchronization */                           |
 |	pnum			            /* number of active processess */                   |
-|	pid_count		            /* pid counter */                                   |
 |	next_pid		            /* cache for next pid */                            |
 |   p_array[MAX_ACTIVE_PROC];   /* Process Array that maps pids to processess */    |
 -------------------------------------------------------------------------------------
@@ -37,8 +36,16 @@
 
 -   #### proc_table_destroy
     destroy process table.
+    also call _exit on every process. except kproc.
+    very destructive. hence, only kproc is allowed to call it.
 
     `void proc_table_destroy(struct proc_table *pt);`
+
+-   #### proc_table_is_empty
+    checks weather proc_table is empty or not
+
+    `bool proc_table_is_empty(void);`
+
 
 -   #### set_proc
     map a process to a given pid.
@@ -52,7 +59,7 @@
 
     return proper error code on error.
 
-    `int get_proc(pid_t pid, struct proc *p);`
+    `int get_proc(pid_t pid, struct proc **p);`
 
 -   #### get_pid
     get a new valid pid.

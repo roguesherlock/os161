@@ -15,7 +15,6 @@
 struct proc_table {
 	struct spinlock pt_lock;                /* for synchronization */
 	unsigned pnum;			                /* number of active processess */
-	unsigned pid_count;		                /* pid counter */
 	unsigned next_pid;		                /* cache for next pid */
     struct proc *p_array[MAX_ACTIVE_PROC];   /* Process Array */
 };
@@ -24,8 +23,11 @@ struct proc_table {
 void proc_table_create(struct proc_table **pt);
 void proc_table_destroy(struct proc_table *pt);
 
+/* check weather proc_table is empty */
+bool proc_table_is_empty(void);
+
 int             set_proc(pid_t pid, struct proc *p);
-int             get_proc(pid_t pid, struct proc *p);
+int             get_proc(pid_t pid, struct proc **p);
 int             get_pid(pid_t *pid);
 struct proc *   rel_pid(pid_t pid);
 
