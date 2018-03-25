@@ -123,7 +123,9 @@ file_handle_has_access (struct file_handle *fh, int flag)
 void
 file_handle_destroy (struct file_handle *fh)
 {
-    KASSERT(fh != NULL);
+    // KASSERT(fh != NULL);
+    if (fh == NULL)
+        return;
 
     spinlock_acquire(&fh->fh_lock);
     fh->refcount--;
