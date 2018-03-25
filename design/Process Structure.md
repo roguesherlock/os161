@@ -18,7 +18,7 @@
 ---------------------------------------------------------
 
 
-## Functions of Proccess
+## Functions on Proccess
 
 
 -   #### kproc
