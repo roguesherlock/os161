@@ -23,8 +23,6 @@
         idea 2: see if copycheck can be made available as copyinoutapi
                 and use it directly
 
--   #### In [execv syscall][5] related to bad memory refrences
-        check with /testbin/badcall
 
 
 
@@ -32,4 +30,3 @@
 [2]:../kern/syscall/write_syscall.c
 [3]:../kern/syscall/lseek_syscall.c
 [4]:../kern/syscall/waitpid_syscall.c
-[5]:../kern/syscall/execv_syscall.c

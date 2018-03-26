@@ -51,16 +51,16 @@ get_argc(char **args)
  */
 static
 void
-free_args(char **args)
+free_args(int argc, char **args)
 {
+	int i;
 	char **tracer;
 
 	tracer = args;
 
-	while (*tracer) {
-		kfree(tracer);
-		tracer++;
-	}
+	for (i = 0; i < argc; ++i)
+		kfree(*tracer++);
+
 
 	/* finally free args itself */
 	kfree(args);
@@ -84,10 +84,11 @@ static
 int
 check_and_copy_args(char **args, int *argc, char ***argv, int *size)
 {
-	int result, nargs, args_size, pad_size;
+	int i, result, nargs, args_size, pad_size;
 	size_t str_size;
 	char **head, **kdst, **usrc;
 
+	i = 0;
 	args_size = 0;
 	pad_size = 0;
 	usrc = args;
@@ -101,26 +102,32 @@ check_and_copy_args(char **args, int *argc, char ***argv, int *size)
 	kdst[nargs] = NULL;								/* define argv end */
 
 	while(*usrc) {
+		/* check if userptr is a valid ptr */
+		result = check_userptr ((const_userptr_t) *usrc);
+		if (result) {
+			free_args(i, head);
+			return result;
+		}
 		str_size = strlen(*usrc) + 1; 	/* account for \0 */
 		pad_size = PAD(str_size);
 		args_size += str_size + pad_size + sizeof(*usrc); /* include pointers too */;
 
 		*kdst = kmalloc(sizeof(char) * str_size);
 		if (*kdst == NULL) {
-			free_args(head);
+			free_args(i, head);
 			return ENOMEM;
 		}
-
+		++i;
 		/* str_size works because char is 1 byte */
 		result = copyin((const_userptr_t) *usrc, *kdst, str_size);
 		if (result) {
-			free_args(head);
+			free_args(i, head);
 			return result;
 		}
 
 		/* unlikely */
 		if (args_size >= ARG_MAX) {
-			free_args(head);
+			free_args(i, head);
 			return E2BIG;
 		}
 
@@ -232,19 +239,18 @@ sys_execv (const char *program, char **args, int32_t *retval)
 
     *retval = -1;
 
-	if (program == NULL)
-		return EFAULT;
-
-	if (args == NULL)
-		return EFAULT;
-
-	/* dummy to check if program is a valid pointer */
-	pname = NULL;
-	result = copyin((const_userptr_t) program, pname, 0);
+	/* check if program is a valid ptr */
+	result = check_userptr ((const_userptr_t) program);
 	if (result)
 		return result;
 
-	psize = strlen(program);
+	/* check if args is a valid ptr */
+	result = check_userptr ((const_userptr_t) args);
+	if (result)
+		return result;
+
+
+	psize = strlen(program) + 1;
 	pname = kmalloc(psize);
 	if (pname == NULL)
 		return ENOMEM;
@@ -303,7 +309,7 @@ sys_execv (const char *program, char **args, int32_t *retval)
 
 	result = put_args_to_userspace_stack(kargs, args_size, &stackptr, &uargs);
 	if (result) {
-		free_args(kargs);
+		free_args(kargc, kargs);
 		return result;
 	}
 
