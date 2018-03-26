@@ -41,7 +41,7 @@ sys_read(int fd, void *buf, size_t buflen, int32_t *read)
     }
 
     if (!file_handle_has_access(fh, READ)) {
-        return EACCES;
+        return EBADF;
     }
 
     riov.iov_ubase = (userptr_t) buf;

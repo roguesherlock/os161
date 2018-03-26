@@ -7,9 +7,6 @@
 
 ## bugs
 
--   #### In [read syscall][1] related to permissions
-        check with /testbin/badcall
-
 -   #### In [write syscall][2] related to permissions
         check with /testbin/badcall
 
@@ -26,7 +23,6 @@
 
 
 
-[1]:../kern/syscall/read_syscall.c
 [2]:../kern/syscall/write_syscall.c
 [3]:../kern/syscall/lseek_syscall.c
 [4]:../kern/syscall/waitpid_syscall.c
