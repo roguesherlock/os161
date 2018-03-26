@@ -319,3 +319,28 @@ copyoutstr(const char *src, userptr_t userdest, size_t len, size_t *actual)
 	curthread->t_machdep.tm_badfaultfunc = NULL;
 	return result;
 }
+
+/*
+ *	check_userptr - check if usersplied pointer is valid
+ *					it does by this copying
+ */
+int
+check_userptr (const_userptr_t usersrc)
+{
+	int result;
+	char *dummy;
+
+	if (usersrc == NULL)
+		return EFAULT;
+
+	dummy = kmalloc(1);
+	if (dummy == NULL)
+		return ENOMEM;
+	result = copyin((const_userptr_t) usersrc, dummy, 1);
+	if (result) {
+		kfree(dummy);
+		return result;
+	}
+	kfree(dummy);
+	return 0;
+}
