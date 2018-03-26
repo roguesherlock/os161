@@ -41,6 +41,10 @@ sys_open(const char *filename, int flags, int32_t *fd)
     if (filename == NULL)
         return EFAULT;
 
+    result = check_userptr((const_userptr_t) filename);
+    if (result)
+        return result;
+
     len = strlen(filename) + 1;
     fname = kmalloc(len);
     if (fname == NULL)
