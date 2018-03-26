@@ -25,6 +25,10 @@ sys_chdir(const char *pathname, int32_t *retval) {
     if (pathname == NULL)
         return EFAULT;
 
+    result = check_userptr((const_userptr_t) pathname);
+    if (result)
+        return result;
+
     len = strlen(pathname) + 1;
 
     path = kmalloc(len);
