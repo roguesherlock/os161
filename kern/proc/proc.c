@@ -126,6 +126,8 @@ proc_create(const char *name)
 	/* process state */
 	proc->p_state = PS_INACTIVE;
 
+	proc->rogue = false;
+
 	return proc;
 }
 

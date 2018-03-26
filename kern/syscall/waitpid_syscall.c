@@ -46,27 +46,23 @@ sys_waitpid (pid_t pid, int *status, int options, int32_t *retval)
             return EINVAL;
     }
 
-
     if ((options == WNOHANG) && (p->p_state == PS_ACTIVE)) {
         *retval = 0;
         return result;
     }
 
-    // lock_acquire(p->p_wait_lock);
+    /* check if status ptr is valid before sleeping */
+    result = check_userptr ((const_userptr_t) status);
+    if (result)
+        if (status != NULL)     /* NULL ptr is allowed */
+            return result;
+
     spinlock_acquire(&p->p_lock);
     while (p->p_state == PS_ACTIVE)
         wchan_sleep(p->p_wait, &p->p_lock);
-        // cv_wait(p->p_wait, p->p_wait_lock);
-    // lock_release(p->p_wait_lock);
     spinlock_release(&p->p_lock);
 
     p_status = p->exit_status;
-
-    // if (p->p_state == PS_INACTIVE && !p->exit_status_collected) {
-    //     *retval = pid;
-    //     p->exit_status_collected = false;
-    //     return result;
-    // }
 
     if (status) {
         result = copyout((const void *) &p_status, (userptr_t) status, sizeof(int));
@@ -79,8 +75,8 @@ sys_waitpid (pid_t pid, int *status, int options, int32_t *retval)
     spinlock_acquire(&p->p_lock);
     no_one_is_waiting = wchan_isempty(p->p_wait, &p->p_lock);
     spinlock_release(&p->p_lock);
-    if (no_one_is_waiting)
-        proc_destroy(p);
+    if (no_one_is_waiting && status && !(p->rogue))
+        mark_proc_for_deletion(p);
 
     return 0;
 }

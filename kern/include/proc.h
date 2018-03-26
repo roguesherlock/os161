@@ -77,6 +77,7 @@ struct proc {
 	struct proc *parent;		/* parent */
 	int exit_status;			/* Process's exit status */
 	proc_state p_state;			/* Process's active status */
+	bool rogue;					/* Is process rogue? kinda like zombie*/
 
 	/* for waitpid */
 	struct wchan *p_wait;
@@ -94,7 +95,7 @@ struct proc {
 	 * Although, kproc has multiple threads.
 	 * But, I'm not adding threadlist just for a single thread
 	 * as I'll have to change the whole semantics
-	 * 
+	 *
 	 */
 	struct thread *p_thread;	/* process thread */
 
