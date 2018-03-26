@@ -7,9 +7,6 @@
 
 ## bugs
 
--   #### In [write syscall][2] related to permissions
-        check with /testbin/badcall
-
 -   #### In [lseek syscall][3] related to bad memory refrences
         check with /testbin/badcall
 
@@ -23,6 +20,5 @@
 
 
 
-[2]:../kern/syscall/write_syscall.c
 [3]:../kern/syscall/lseek_syscall.c
 [4]:../kern/syscall/waitpid_syscall.c

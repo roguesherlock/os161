@@ -42,7 +42,7 @@ sys_write(int fd, const void *buf, size_t buflen, int32_t *wrote)
     }
 
     if (!file_handle_has_access(fh, WRITE)) {
-        return EACCES;
+        return EBADF;
     }
 
     rwlock_acquire_write(fh->f_lock);
