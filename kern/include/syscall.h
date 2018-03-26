@@ -69,9 +69,9 @@ int sys_chdir(const char *pathname, int32_t *retval);
 int sys___getcwd(char *buf, size_t buflen, int32_t *retval);
 int sys_fork(struct trapframe *tf, int32_t *ret);
 pid_t sys_getpid(void); /* as getpid does not fail, there's no point in returning with status */
-
 void sys__exit(int exitcode);
 int sys_waitpid(pid_t pid, int *status, int options, int32_t *retval);
+int sys_execv(const char *program, char **args, int32_t *retval);
 
 /*
  * helper functions. Defined in various syscalls.
