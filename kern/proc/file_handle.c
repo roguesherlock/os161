@@ -43,6 +43,7 @@ file_handle_create (struct vnode *file, int f_openflags, off_t f_pos, struct fil
 
     fh->refcount = 1;
     fh->file = file;
+    VOP_INCREF(file);
     fh->f_openflags = f_openflags & O_ACCMODE; /* Reduce flags to only 3 values R, W, RW */
     fh->f_pos = f_pos;
 

@@ -7,9 +7,6 @@
 
 ## bugs
 
--   #### In [lseek syscall][3] related to bad memory refrences
-        check with /testbin/badcall
-
 -   #### In [waitpid syscall][4] related to bad memory refrences
         check if status pointer is valid before sleeping.
         Note: NULL is valid.
@@ -20,5 +17,4 @@
 
 
 
-[3]:../kern/syscall/lseek_syscall.c
 [4]:../kern/syscall/waitpid_syscall.c
