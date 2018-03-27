@@ -7,4 +7,10 @@
 
 ## bugs
 
--    #### Squashed them all!
+-    #### mixed up console output
+
+-    #### Tests to pass
+        bigfork
+        bigexec
+        crash
+        factorial
