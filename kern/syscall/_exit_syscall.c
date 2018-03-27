@@ -27,11 +27,11 @@ sys__exit (int exitcode)
     spinlock_acquire(&p->p_lock);
     p->p_state = PS_INACTIVE;
     p->exit_status = _MKWAIT_EXIT(exitcode);
-    if (wchan_isempty(p->p_wait, &p->p_lock) && !(p->rogue)) {
+    if (wchan_isempty(p->p_wait, &p->p_lock) && p->rogue) {
         /*
          * can't have spinlocks when deleting. Why?
          * dumbvm can sleep!
-         * 
+         *
          */
         spinlock_release(&p->p_lock);
         mark_proc_for_deletion(p);

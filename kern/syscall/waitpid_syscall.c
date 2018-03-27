@@ -75,7 +75,7 @@ sys_waitpid (pid_t pid, int *status, int options, int32_t *retval)
     spinlock_acquire(&p->p_lock);
     no_one_is_waiting = wchan_isempty(p->p_wait, &p->p_lock);
     spinlock_release(&p->p_lock);
-    if (no_one_is_waiting && status && !(p->rogue))
+    if (no_one_is_waiting && status && p->rogue)
         mark_proc_for_deletion(p);
 
     return 0;

@@ -7,7 +7,5 @@
 ## bugs
 
 -    #### Tests to pass
-        bigfork
         bigexec
         crash
-        factorial
