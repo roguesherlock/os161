@@ -100,6 +100,7 @@ check_and_copy_args(char **args, int *argc, char ***argv, int *size)
 		return ENOMEM;
 
 	kdst[nargs] = NULL;								/* define argv end */
+	args_size += sizeof(userptr_t);
 
 	while(*usrc) {
 		/* check if userptr is a valid ptr */
@@ -110,7 +111,7 @@ check_and_copy_args(char **args, int *argc, char ***argv, int *size)
 		}
 		str_size = strlen(*usrc) + 1; 	/* account for \0 */
 		pad_size = PAD(str_size);
-		args_size += str_size + pad_size + sizeof(*usrc); /* include pointers too */;
+		args_size += str_size + pad_size + sizeof(userptr_t); /* include pointers too */;
 
 		*kdst = kmalloc(sizeof(char) * str_size);
 		if (*kdst == NULL) {
@@ -214,9 +215,13 @@ put_args_to_userspace_stack (char **kargs, int args_size, vaddr_t *stackptr, use
 		result = copyout(&head, tail, sizeof(userptr_t));
 		if (result)
 			return result;
-		tail++;
+
+		tail += sizeof(userptr_t);
 		tracer++;
 	}
+
+	/* terminate argv */
+	bzero(tail, sizeof(userptr_t));
 
 	*stackptr -= args_size;
 	*uargs = (userptr_t) *stackptr;

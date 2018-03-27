@@ -63,7 +63,7 @@
 #define __PATH_MAX      1024
 
 /* Max bytes for an exec function (should be at least 16K) */
-#define __ARG_MAX       (64 * 1024)
+#define __ARG_MAX       (72 * 1024)
 
 
 /*
