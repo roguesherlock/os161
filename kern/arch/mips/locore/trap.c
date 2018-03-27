@@ -28,6 +28,8 @@
  */
 
 #include <types.h>
+#include <kern/errno.h>
+#include <kern/wait.h>
 #include <signal.h>
 #include <lib.h>
 #include <mips/specialreg.h>
@@ -39,6 +41,8 @@
 #include <vm.h>
 #include <mainbus.h>
 #include <syscall.h>
+#include <proc.h>
+#include <proc_table.h>
 
 
 /* in exception-*.S */
@@ -112,9 +116,34 @@ kill_curthread(vaddr_t epc, unsigned code, vaddr_t vaddr)
 	 * You will probably want to change this.
 	 */
 
+    /* set process exit code and status */
+    spinlock_acquire(&curproc->p_lock);
+    curproc->p_state = PS_INACTIVE;
+    curproc->exit_status = _MKWAIT_EXIT(ENORECOVERY);
+    if (wchan_isempty(curproc->p_wait, &curproc->p_lock) && !(curproc->rogue)) {
+        /*
+         * can't have spinlocks when deleting. Why?
+         * dumbvm can sleep!
+         *
+         */
+        spinlock_release(&curproc->p_lock);
+        mark_proc_for_deletion(curproc);
+    } else {
+        /* notify parent */
+        wchan_wakeall(curproc->p_wait, &curproc->p_lock);
+        spinlock_release(&curproc->p_lock);
+    }
+
+	/* print to console. for debugging */
 	kprintf("Fatal user mode trap %u sig %d (%s, epc 0x%x, vaddr 0x%x)\n",
 		code, sig, trapcodenames[code], epc, vaddr);
-	panic("I don't know how to handle this\n");
+
+    /* exit thread */
+    thread_exit();
+
+	// kprintf("Fatal user mode trap %u sig %d (%s, epc 0x%x, vaddr 0x%x)\n",
+		// code, sig, trapcodenames[code], epc, vaddr);
+	// panic("I don't know how to handle this\n");
 }
 
 /*

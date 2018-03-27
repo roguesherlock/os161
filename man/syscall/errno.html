@@ -108,6 +108,15 @@ the file <tt>kern/errno.h</tt> that defines them.
 	produced by attempting to make nonexistent system
 	calls.</td></tr>
 
+<table width=90%>
+<tr><td width=5% rowspan=63>&nbsp;</td>
+	<td width=10% valign=top>ENORECOVERY</td>
+<td><b>Bad Action. Non Recoverable</b>: something bad happen
+	and the process can't be recovered. It can segfault,
+	illegal instruction, floating point exception, bus error, etc
+	</td></tr>
+
+
 <tr><td valign=top>ENOMEM</td>
 <td><b>Out of memory</b>: a memory allocation failed. This normally
 	means that a process has used up all the memory available to

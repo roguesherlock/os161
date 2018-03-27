@@ -2,7 +2,6 @@
 
 ## To Implement
 
--   #### kill_curthread
 -   #### A better scheduling algorithm.
 
 ## bugs
