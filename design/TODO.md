@@ -7,8 +7,6 @@
 
 ## bugs
 
--    #### mixed up console output
-
 -    #### Tests to pass
         bigfork
         bigexec
