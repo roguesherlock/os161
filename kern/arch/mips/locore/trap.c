@@ -79,6 +79,9 @@ kill_curthread(vaddr_t epc, unsigned code, vaddr_t vaddr)
 {
 	int sig = 0;
 
+	(void) vaddr;
+	(void) epc;
+
 	KASSERT(code < NTRAPCODES);
 	switch (code) {
 	    case EX_IRQ:
@@ -119,8 +122,12 @@ kill_curthread(vaddr_t epc, unsigned code, vaddr_t vaddr)
     /* set process exit code and status */
     spinlock_acquire(&curproc->p_lock);
     curproc->p_state = PS_INACTIVE;
-    curproc->exit_status = _MKWAIT_EXIT(ENORECOVERY);
-    if (wchan_isempty(curproc->p_wait, &curproc->p_lock) && !(curproc->rogue)) {
+	if (sig == SIGSEGV)
+    	curproc->exit_status = _MKWAIT_CORE(sig);
+	else
+		curproc->exit_status = _MKWAIT_SIG(sig);
+	curproc->rogue = true;		/* rogue one */
+    if (wchan_isempty(curproc->p_wait, &curproc->p_lock)) {
         /*
          * can't have spinlocks when deleting. Why?
          * dumbvm can sleep!
@@ -135,8 +142,8 @@ kill_curthread(vaddr_t epc, unsigned code, vaddr_t vaddr)
     }
 
 	/* print to console. for debugging */
-	kprintf("Fatal user mode trap %u sig %d (%s, epc 0x%x, vaddr 0x%x)\n",
-		code, sig, trapcodenames[code], epc, vaddr);
+	// kprintf("Fatal user mode trap %u sig %d (%s, epc 0x%x, vaddr 0x%x)\n",
+		// code, sig, trapcodenames[code], epc, vaddr);
 
     /* exit thread */
     thread_exit();
