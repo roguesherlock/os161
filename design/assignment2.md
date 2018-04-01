@@ -15,21 +15,27 @@
 -   #### When implementing exec, how will you determine:
 
     -   the stack pointer initial value
+        >   New Stacks always have initial values of USESRSTACK. It'll be decremented (as stack grows down) as I put the arguments for the user program on top of stack.
 
     -   the initial register contents
+        >   we only need to set few registers. Namely arguments registers, program counter, stack pointer, etc Rest of them are zeored out.
 
     -   the return value
+        >   execv does not return of sucess. On failure it returns -1 and sets proper errno.
 
     -   whether you can execute the program at all?
+        >   load_elf will fail in case program is non executable (although, it isn't called an program then).
 
 
 -   #### You will need to bullet-proof the OS/161 kernel from user program errors. There should be nothing a user program can do—​and we will try almost everything—to crash the operating system, with the exception of explicitly asking the system to halt.
-
+    >   execv doesn't panic. kill_curthread is called anytime user tries to anything mallicius (either intentionally or unintentionally) which kills the current user process.
 
 -   #### What new data structures will you need to manage multiple processes?
+    >   A Process Table which keep tracks of Current active/inactive Processess in the system.
 
 
 -   #### What relationships do these new structures have with the rest of the system?
+    >   A Process Table maps pids to processess in the system.
 
 
 -   #### How will you manage file accesses? When the shell invokes the cat command, and the cat command starts to read file1, what will happen if another program also tries to read file1? What would you like to happen?
@@ -112,7 +118,7 @@
     >   j syscall?
 
 -   #### Now that OS/161 supports 64 bit values, lseek takes and returns a 64 bit offset value. Thus, lseek takes a 32 bit file handle (arg0), a 64 bit offset (arg1), a 32 bit whence (arg3), and needs to return a 64 bit offset. In void syscall(struct              trapframe *tf) where will you find each of the three arguments (in which registers) and how will you return the 64 bit offset?
-    >   arg0 in a0, arg1 in a2 & a3 and arg3 on stack. return in v0 & v1?
+    >   arg0 in a0, arg1 in a2 & a3 and arg3 at sp+16. return in v0 & v1 (v0 contains higher order bits, whilst v1 contains lower order bits as MIPS's byte order is set to BIG-ENDIAN order)
 
 
 
