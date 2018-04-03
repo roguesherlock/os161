@@ -69,14 +69,15 @@ I decided eventually to restrict open files to NR_OPEN_DEFAULT (64 hard coded cu
     `void files_table_destroy(struct files_table *);`
 
 
+
 <br/>
 
 
 
 ### Source
 
-[files_table.h][2]
-[files_table.c][3]
+-   [files_table.h][2]
+-   [files_table.c][3]
 
 
 

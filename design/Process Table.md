@@ -76,3 +76,17 @@
 
     `struct proc *rel_pid(pid_t pid);`
 
+
+
+<br/>
+
+
+
+## Source
+
+-   [proc_table.h][1]
+-   [proc_table.c][2]
+
+
+[1]:../kern/include/proc_table.h
+[2]:../kern/proc/proc_table.c

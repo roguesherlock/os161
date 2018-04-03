@@ -68,3 +68,15 @@
     `int proc_copy(struct proc *src, struct proc **dst);`
 
 
+
+<br/>
+
+
+
+
+## Source
+
+-   [proc.h][1]
+
+
+[1]:../kern/include/proc.h
