@@ -48,6 +48,43 @@ struct vnode;
  * You write this.
  */
 
+#if !OPT_DUMBVM
+#define INITIAL_SEGMENTS 5
+
+/* masks to get info and permission for as_flags */
+#define SG_EXECUTE 1
+#define SG_WRITE 2
+#define SG_READ 4
+
+
+struct segment {
+        /* virtual base address  of segment */
+        vaddr_t sg_vbase;
+
+        /* segment size */
+        size_t sg_size;
+
+        /* info and permissions */
+        unsigned sg_flags:3;
+
+        /* is segment in use? */
+        unsigned sg_inuse:1;
+
+        /* is segment dynamic */
+        unsigned sg_dynamic:1;
+};
+
+
+struct segment_list {
+        struct segment segment;
+        struct segment_list *next;
+};
+
+
+#endif
+
+
+
 struct addrspace {
 #if OPT_DUMBVM
         vaddr_t as_vbase1;
@@ -58,7 +95,22 @@ struct addrspace {
         size_t as_npages2;
         paddr_t as_stackpbase;
 #else
-        /* Put stuff here for your VM system */
+        /*
+         * is addrspace actually copied during fork?
+         * if set, the virtual pages points to the parent's
+         * physical pages
+         */
+        unsigned as_copied:1;
+
+        /* Initial segments */
+        struct segment as_segments[INITIAL_SEGMENTS];
+
+        /* pointer to extra segments (points to first extra segment) */
+        struct segment_list *as_extra_segments;
+
+	/* page table */
+	struct page_table *as_page_table[PAGE_TABLE_SIZE];
+
 #endif
 };
 
@@ -117,6 +169,11 @@ int               as_define_region(struct addrspace *as,
 int               as_prepare_load(struct addrspace *as);
 int               as_complete_load(struct addrspace *as);
 int               as_define_stack(struct addrspace *as, vaddr_t *initstackptr);
+
+
+#if !OPT_DUMBVM
+int as_actually_copy(struct addrspace *as);
+#endif
 
 
 /*

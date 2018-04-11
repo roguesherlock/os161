@@ -35,7 +35,9 @@
         "stdio.h": "c",
         "cdefs.h": "c",
         "stdarg.h": "c",
-        "limits.h": "c"
+        "limits.h": "c",
+        "spl.h": "c",
+        "tlb.h": "c"
     },
     "C_Cpp.errorSquiggles": "Disabled"
 }

@@ -19,6 +19,7 @@
 #include <proc.h>
 #include <vfs.h>
 #include <vnode.h>
+#include <vm.h>
 
 
 
@@ -30,10 +31,13 @@ sys_write(int fd, const void *buf, size_t buflen, int32_t *wrote)
     struct uio wuio;
     struct file_handle *fh;
 
+    KASSERT(curproc != NULL);
+
     result = 0;
     *wrote = -1;
 
-    if (fd < 0 || fd >= NR_OPEN_DEFAULT || (fh = curproc->files->fd_array[fd]) == NULL) {
+    if (fd < 0 || fd >= NR_OPEN_DEFAULT || (fh = curproc->files->fd_array[fd]) == NULL
+        || (!get_sg_flags_if_valid(curproc->p_addrspace, (vaddr_t) buf, NULL))) {
         return EBADF;
     }
 

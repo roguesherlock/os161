@@ -14,6 +14,7 @@
 #include <syscall.h>
 #include <copyinout.h>
 #include <wchan.h>
+#include <vm.h>
 
 int
 sys_waitpid (pid_t pid, int *status, int options, int32_t *retval)
@@ -25,6 +26,8 @@ sys_waitpid (pid_t pid, int *status, int options, int32_t *retval)
     p = NULL;
     cp = curthread->t_proc;
     no_one_is_waiting = false;
+
+    KASSERT (curproc != NULL);
 
     result = 0;
     *retval = -1;
@@ -64,7 +67,7 @@ sys_waitpid (pid_t pid, int *status, int options, int32_t *retval)
 
     p_status = p->exit_status;
 
-    if (status) {
+    if (get_sg_flags_if_valid(curproc->p_addrspace, (vaddr_t) status, NULL)) {
         result = copyout((const void *) &p_status, (userptr_t) status, sizeof(int));
         if (result)
             return result;

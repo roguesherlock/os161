@@ -128,7 +128,7 @@ mark_proc_for_deletion (struct proc *p)
         /*
          * can't have spinlocks when deleting. Why?
          * dumbvm can sleep!
-         * 
+         *
          */
         spinlock_release(&pt->pt_lock);
         proc_destroyer();

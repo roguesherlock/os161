@@ -39,6 +39,7 @@
 #include <spinlock.h>
 #include <wchan.h>
 #include <synch.h>
+#include <vm.h>
 
 struct addrspace;
 struct thread;

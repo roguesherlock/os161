@@ -28,6 +28,9 @@
  */
 
 #include <types.h>
+#include <current.h>
+#include <spl.h>
+#include <mips/tlb.h>
 #include <kern/errno.h>
 #include <lib.h>
 #include <addrspace.h>
@@ -43,6 +46,7 @@
 struct addrspace *
 as_create(void)
 {
+	int i;
 	struct addrspace *as;
 
 	as = kmalloc(sizeof(struct addrspace));
@@ -50,16 +54,47 @@ as_create(void)
 		return NULL;
 	}
 
-	/*
-	 * Initialize as needed.
-	 */
+	for (i = 0; i < INITIAL_SEGMENTS; ++i) {
+		as->as_segments[i].sg_vbase = 0;
+		as->as_segments[i].sg_size = 0;
+		as->as_segments[i].sg_flags = 0;
+		as->as_segments[i].sg_inuse = 0;
+		as->as_segments[i].sg_dynamic = 0;
+	}
+
+	/* initialize page table */
+	for (i = 0; i < PAGE_TABLE_SIZE; ++i)
+		as->as_page_table[i] = NULL;
+
+	as->as_extra_segments = NULL;
+	as->as_copied = 1;
 
 	return as;
 }
 
+
+static
+void
+free_as_extra_segments (struct segment_list *head)
+{
+	struct segment_list *ptr, *fptr;
+
+	ptr = head;
+	while (ptr != NULL) {
+		fptr = ptr;
+		ptr = ptr->next;
+		kfree(fptr);
+	}
+}
+
+
+
 int
 as_copy(struct addrspace *old, struct addrspace **ret)
 {
+	int i, j; //, spl;
+	struct page_table *pt;
+	struct page_table_entry *pte;
 	struct addrspace *newas;
 
 	newas = as_create();
@@ -67,29 +102,160 @@ as_copy(struct addrspace *old, struct addrspace **ret)
 		return ENOMEM;
 	}
 
-	/*
-	 * Write this.
-	 */
+	/* don't copy the whole addrspace just yet. */
+	newas->as_copied = 0;
 
-	(void)old;
+	for (i = 0; i < INITIAL_SEGMENTS; ++i) {
+		newas->as_segments[i].sg_vbase = old->as_segments[i].sg_vbase;
+		newas->as_segments[i].sg_size = old->as_segments[i].sg_size;
+		newas->as_segments[i].sg_flags = old->as_segments[i].sg_flags;
+		newas->as_segments[i].sg_inuse = old->as_segments[i].sg_inuse;
+		newas->as_segments[i].sg_dynamic = old->as_segments[i].sg_dynamic;
+	}
+	if (old->as_extra_segments != NULL) {
+		/* declaring here as it is unlikey we'll ever reach here */
+		struct segment_list *sg_ptr, *head, *new_sg_ptr;
+
+		new_sg_ptr = head = NULL;
+		sg_ptr = old->as_extra_segments;
+		while (sg_ptr != NULL) {
+			new_sg_ptr = kmalloc(sizeof(*new_sg_ptr));
+			if (new_sg_ptr == NULL) {
+				free_as_extra_segments(head);
+				return ENOMEM;
+			}
+			new_sg_ptr->segment.sg_vbase = sg_ptr->segment.sg_vbase;
+			new_sg_ptr->segment.sg_size = sg_ptr->segment.sg_size;
+			new_sg_ptr->segment.sg_flags = sg_ptr->segment.sg_flags;
+			new_sg_ptr->segment.sg_inuse = sg_ptr->segment.sg_inuse;
+			new_sg_ptr->segment.sg_dynamic = sg_ptr->segment.sg_dynamic;
+			new_sg_ptr->next = head;
+			head = new_sg_ptr;
+
+			sg_ptr = sg_ptr->next;
+		}
+		newas->as_extra_segments = head;
+	}
+
+	// spl = splhigh();
+	/*
+	 * just point to the current addrspace's page table
+	 * we don't want to modify addrspace page table until process
+	 * tries to access. That's because, the process may just call execv
+	 * and all of our hardwork would be for nothing.
+	 */
+	for (i = 0; i < PAGE_TABLE_SIZE; ++i) {
+		pt = old->as_page_table[i];
+		if (pt == NULL)
+			continue;
+		pt->refcount++;
+		for (j = 0; j <PAGE_TABLE_SIZE; ++j) {
+			pte = pt->page_table_entries[j];
+			if (pte == NULL)
+				continue;
+			pte->refcount++;
+		}
+		newas->as_page_table[i] = pt;
+	}
+	// splx(spl);
 
 	*ret = newas;
 	return 0;
 }
 
+
+int
+as_actually_copy(struct addrspace *as)
+{
+	int i, j; //, spl;
+	paddr_t addr, paddr;
+	// const paddr_t *paddr;
+	struct page_table *pt, *npt;
+	struct page_table_entry *pte, *npte;
+
+	KASSERT(as->as_copied == 0);
+
+	vm_can_sleep();
+
+	// spl = splhigh();
+
+	as->as_copied = 1;
+
+	for (i = 0; i < PAGE_TABLE_SIZE; ++i) {
+		pt = as->as_page_table[i];
+		if (pt == NULL)
+			continue;
+
+		/* TODO: Free page tables and page table entries */
+		npt = kmalloc(sizeof(*npt));
+		if (npt == NULL) {
+			return ENOMEM;
+		}
+		npt->refcount = 1;
+		for (j = 0; j < PAGE_TABLE_SIZE; ++j) {
+			pte = pt->page_table_entries[j];
+			if (pte == NULL)
+				continue;
+			npte = kmalloc(sizeof(*npte));
+			if (npte == NULL) {
+				return ENOMEM;
+			}
+			addr = alloc_kpages(1);
+			if (addr == (paddr_t) NULL) {
+				return ENOMEM;
+			}
+			paddr = pte->paddr;
+			memmove((void *) addr, (const void *) (paddr + MIPS_KSEG0), PAGE_SIZE);
+			npte->paddr = GET_PAGE_ADDRESS(addr);
+			npte->refrenced = 1;
+			npte->valid = 1;
+			npte->flags = pte->flags;
+			npte->refcount = 1;
+			npt->page_table_entries[j] = npte;
+
+			--pte->refcount;
+		}
+		--pt->refcount;
+
+		as->as_page_table[i] = npt;
+	}
+
+	// splx(spl);
+
+	return 0;
+}
+
+
+
 void
 as_destroy(struct addrspace *as)
 {
-	/*
-	 * Clean up as needed.
-	 */
 
+	int i, j;
+	struct page_table *pt;
+	struct page_table_entry *pte;
+
+	for (i = 0; i < PAGE_TABLE_SIZE; ++i) {
+		pt = as->as_page_table[i];
+		if (pt == NULL)
+			continue;
+		for (j = 0; j <PAGE_TABLE_SIZE; ++j) {
+			pte = pt->page_table_entries[j];
+			if (pte == NULL)
+				continue;
+			if (--pte->refcount == 0)
+				kfree(pte);
+		}
+		if (--pt->refcount == 0)
+			kfree(pt);
+	}
 	kfree(as);
 }
 
 void
 as_activate(void)
 {
+	int i, spl;
 	struct addrspace *as;
 
 	as = proc_getas();
@@ -101,9 +267,14 @@ as_activate(void)
 		return;
 	}
 
-	/*
-	 * Write this.
-	 */
+	/* Disable interrupts on this CPU while frobbing the TLB. */
+	spl = splhigh();
+
+	for (i=0; i<NUM_TLB; i++) {
+		tlb_write(TLBHI_INVALID(i), TLBLO_INVALID(), i);
+	}
+
+	splx(spl);
 }
 
 void
@@ -130,18 +301,52 @@ int
 as_define_region(struct addrspace *as, vaddr_t vaddr, size_t memsize,
 		 int readable, int writeable, int executable)
 {
-	/*
-	 * Write this.
-	 */
+	int i;
+	bool found_seg;
 
-	(void)as;
-	(void)vaddr;
-	(void)memsize;
-	(void)readable;
-	(void)writeable;
-	(void)executable;
-	return ENOSYS;
+	found_seg = false;
+
+	for (i = 0; i < INITIAL_SEGMENTS; ++i) {
+		if (!as->as_segments[i].sg_inuse) {
+			found_seg = true;
+			as->as_segments[i].sg_inuse = 1;
+			as->as_segments[i].sg_vbase = vaddr;
+			as->as_segments[i].sg_size = memsize;
+			as->as_segments[i].sg_dynamic = (memsize) ? 0 : 1;
+			as->as_segments[i].sg_flags |= readable ? SG_READ: 0;
+			as->as_segments[i].sg_flags |= writeable ? SG_WRITE : 0;
+			as->as_segments[i].sg_flags |= executable ? SG_EXECUTE : 0;
+			break;
+		}
+	}
+
+	if (!found_seg) {
+		/*
+		 * Note: normally I don't like to declare variables so far into the function
+		 * But, I don't like wasting memory either. So,  ¯\_(ツ)_/¯
+		 */
+		struct segment_list *extra_seg, *prev_seg;
+
+		extra_seg = kmalloc(sizeof(*extra_seg));
+		if (extra_seg == NULL)
+			return ENOMEM;
+
+		extra_seg->segment.sg_inuse = 1;
+		extra_seg->segment.sg_vbase = vaddr;
+		extra_seg->segment.sg_size = memsize;
+		as->as_segments[i].sg_dynamic = (memsize) ? 0 : 1;
+		extra_seg->segment.sg_flags |= readable ? SG_READ: 0;
+		extra_seg->segment.sg_flags |= writeable ? SG_WRITE : 0;
+		extra_seg->segment.sg_flags |= executable ? SG_EXECUTE : 0;
+
+		prev_seg = (as->as_extra_segments == NULL) ? NULL : as->as_extra_segments;
+		extra_seg->next = prev_seg;
+		as->as_extra_segments = extra_seg;
+	}
+
+	return 0;
 }
+
 
 int
 as_prepare_load(struct addrspace *as)
@@ -168,15 +373,8 @@ as_complete_load(struct addrspace *as)
 int
 as_define_stack(struct addrspace *as, vaddr_t *stackptr)
 {
-	/*
-	 * Write this.
-	 */
-
-	(void)as;
-
-	/* Initial user-level stack pointer */
 	*stackptr = USERSTACK;
 
-	return 0;
+	return as_define_region(as, USERSTACK, 0, SG_READ, SG_WRITE, 0);
 }
 

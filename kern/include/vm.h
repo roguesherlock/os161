@@ -52,6 +52,28 @@
 #define PAGE_RDWR        3    /* A Page is being used  as read, write */
 
 
+/* PAGE_TABLE_SIZE */
+#define PAGE_TABLE_SIZE 1024
+
+/*
+ * macros and masks to split virtual page address into 2 parts
+ * this is because we use two level page tables
+ * A virtual page address is divided into two parts
+ * page location: 20 bits
+ * offset into page: 12 bits
+ * We split 20 bits page location into two equal parts
+ * Upper half and Lower half
+ * Upper half is index into top level page table (which every process has)
+ * Lower half is index into second level page table which points to
+ * actual page tale entry
+ */
+#define UPPER_HALF_PAGE_ADDRESS 0xffc00000
+#define LOWER_HALF_PAGE_ADDRESS 0x003ff000
+#define GET_UPPER_HALF_PAGE_ADDRESS(X) ((X) &  UPPER_HALF_PAGE_ADDRESS)
+#define GET_LOWER_HALF_PAGE_ADDRESS(X) ((X) & LOWER_HALF_PAGE_ADDRESS)
+#define GET_PAGE_ADDRESS(X) (((X) - MIPS_KSEG0) & PAGE_FRAME)
+
+
 /*
  *  struct page: A page is the basic unit of memory management
  *              page represents the physical memory and describes
@@ -86,10 +108,36 @@ struct coremap {
 };
 
 
+/*
+ *  struct page_table_entry
+ */
+struct page_table_entry {
+    paddr_t paddr;       /* physical page number */
+    unsigned flags:3;       /* read, write, execute */
+    unsigned valid:1;       /* is page located in memory */
+    unsigned refrenced:1;   /* has page been read/written to recently? */
+    unsigned refcount:11;    /* don't need this much space. just to fill. */
+};
+
+
+/*
+ * struct page_table
+ */
+struct page_table {
+    unsigned refcount;
+    struct page_table_entry *page_table_entries[PAGE_TABLE_SIZE];
+};
+
 /* Initialization function for coremap */
 void coremap_init(void);
 
 vaddr_t get_vaddr(unsigned long i);
+
+struct addrspace;
+
+bool get_sg_flags_if_valid (struct addrspace *as, vaddr_t faultaddress, int *flags);
+
+void vm_can_sleep(void);
 
 #endif
 
