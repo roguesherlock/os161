@@ -130,16 +130,14 @@ file_handle_destroy (struct file_handle *fh)
 
     spinlock_acquire(&fh->fh_lock);
     fh->refcount--;
-    if (fh->refcount == 0) {        /* there's one edge case where this might be true even if some task still references it.
-                                    it's when refcount overlaps. Considering it's 32bit unsigned int, it's very unlikely. */
+    if (fh->refcount != 0)
         spinlock_release(&fh->fh_lock);
+    else {
         vfs_close(fh->file);
         rwlock_destroy(fh->f_lock);
+        spinlock_release(&fh->fh_lock);
         spinlock_cleanup(&fh->fh_lock);
         kfree(fh);
-
-    } else {
-        spinlock_release(&fh->fh_lock);
     }
 
 }
