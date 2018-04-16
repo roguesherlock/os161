@@ -13,8 +13,8 @@
 |   PID: Process ID                                     |
 |   PPID: Parent Process ID                             |
 |   Exit Status: Process's exit status                  |
-|   p_state: Process's active status                    |
-|   wchan: for waitpid                                  |
+|   exit_sem:                                           |
+|   Exited                                              |
 ---------------------------------------------------------
 
 

@@ -85,8 +85,8 @@ proc_create(const char *name)
 		return NULL;
 	}
 
-	proc->p_wait = wchan_create(name);
-	if (proc->p_wait == NULL) {
+	proc->exit_sem = sem_create(name, 0);
+	if (proc->exit_sem == NULL) {
 		kfree(proc->p_name);
 		kfree(proc);
 		return NULL;
@@ -101,7 +101,7 @@ proc_create(const char *name)
 		proc->ppid = curproc->pid;
 		result = get_pid(&proc->pid);
 		if (result) {
-			wchan_destroy(proc->p_wait);
+			sem_destroy(proc->exit_sem);
 			kfree(proc->p_name);
 			kfree(proc);
 			return NULL;
@@ -123,10 +123,7 @@ proc_create(const char *name)
 	/* process thread */
 	proc->p_thread = NULL;
 
-	/* process state */
-	proc->p_state = PS_INACTIVE;
-
-	proc->rogue = false;
+	proc->exited = false;
 
 	return proc;
 }
@@ -151,7 +148,6 @@ proc_destroy(struct proc *proc)
 	KASSERT(proc != NULL);
 	KASSERT(proc != kproc);
 
-	proc->p_state = PS_INACTIVE;
 	proc->p_thread = NULL;
 	proc->parent = NULL;
 
@@ -217,7 +213,7 @@ proc_destroy(struct proc *proc)
 
 	files_table_destroy(proc->files);
 	rel_pid(proc->pid);
-	wchan_destroy(proc->p_wait);
+	sem_destroy(proc->exit_sem);
 
 	KASSERT(proc->p_numthreads == 0);
 	spinlock_cleanup(&proc->p_lock);
@@ -241,7 +237,6 @@ proc_bootstrap(void)
 	if(kproc->files == NULL)
 		panic("files_table_create for kproc failed\n");
 
-	kproc->p_state = PS_ACTIVE;
 
 	/* bypass set_proc and just set kproc in process table
 	 * Note: kproc is not accounted for in number of active process
@@ -298,8 +293,6 @@ proc_create_runprogram(const char *name)
 		panic("[!] Unable to assign default file handles. Error Code: %d\n", result);
 
 	set_proc(newproc->pid, newproc);
-
-	newproc->p_state = PS_ACTIVE;
 
 	return newproc;
 }
@@ -437,9 +430,6 @@ proc_copy(struct proc *src, struct proc **dst)
 		newp->p_cwd = src->p_cwd;
 	}
 	spinlock_release(&src->p_lock);
-
-    /* make process active */
-    newp->p_state = PS_ACTIVE;
 
 	*dst = newp;
 
