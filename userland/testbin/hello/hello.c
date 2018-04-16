@@ -28,62 +28,19 @@
  */
 
 /*
- * readtest.c
- *
- * 	Tests whether read syscalls works
- * 	This should run correctly when read is
- * 	implemented correctly.
- *
- * NOTE: While checking, this test only checks the first 31 characters.
+ * Simple program that prints hello
  */
-#include <stdlib.h>
-#include <stdio.h>
-#include <err.h>
-#include <fcntl.h>
-#include <test161/test161.h>
-#include <stdarg.h>
-#include <unistd.h>
-#include <errno.h>
-#include <string.h>
 
+#include <stdio.h>
+#include <stdlib.h>
+#include <err.h>
+#include <test161/test161.h>
 
 int
-main(int argc, char **argv)
+main()
 {
+	printf("hello, world!\n");
 
-	// 23 Mar 2012 : GWA : Assume argument passing is *not* supported.
-
-	(void) argc;
-	(void) argv;
-
-	char *args[2];
-
-	args[0] = (char *)"hey";
-	args[1] = NULL;
-
-   	pid_t pid = fork();
-   	if (pid == -1) {
-      	err(1, "fork failed");
-   	} else if (pid == 0) {
-      	printf("Hello from the child process!\n");
-		printf("I'm starting /bin/true\n");
-		if (execv("/bin/true", args)) {
-			printf("Exit code: %d\n", errno);
-			err(1, "[!] somethings wrong. execvtest failed");
-			exit(-1);
-		}
-   	} else {
-		printf("Hello from the parent process!\n");
-		printf("Got Pid: %d\n", (int) pid);
-		printf("Waiting for child to exit\n");
-		int status;
-      	(void)waitpid(pid, &status, 0);
-		printf("\nchild exited!\n");
-
-		success(TEST161_SUCCESS, SECRET, "/testbin/execvtest");
-		return 0;
-   	}
-
-	err(1, "[!] somethings wrong. execvtest failed");
-	return 1;
+	success(TEST161_SUCCESS, SECRET, "/testbin/hello");
+	return 0;
 }

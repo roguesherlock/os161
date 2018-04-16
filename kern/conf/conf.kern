@@ -409,6 +409,8 @@ file      syscall/execv_syscall.c
 file      syscall/waitpid_syscall.c
 file      syscall/_exit_syscall.c
 
+# VM
+file      syscall/sbrk_syscall.c
 
 #
 # Startup and initialization

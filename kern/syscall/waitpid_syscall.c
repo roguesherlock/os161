@@ -49,12 +49,8 @@ sys_waitpid (pid_t pid, int *status, int options, int32_t *retval)
         return result;
     }
 
-    /* check if status ptr is valid before sleeping */
-    result = check_userptr ((const_userptr_t) status);
-    if (result)
-        if (status != NULL)     /* NULL ptr is allowed */
-            return result;
-
+    if (status != NULL && (!as_is_addr_valid(curproc->p_addrspace, (vaddr_t) status)))
+        return EFAULT;
 
     if (!p_child->exited)
         P(p_child->exit_sem);

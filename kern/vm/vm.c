@@ -14,11 +14,14 @@
 #include <mips/tlb.h>
 #include <addrspace.h>
 #include <vm.h>
+#include <elf.h>
 
+
+#define COREMAP_DEBUG 0
 
 /* Coremap */
 static struct coremap cmap;
-
+static struct spinlock cmap_lock = SPINLOCK_INITIALIZER;
 
 /*
  *  coremap_init - Initialize coremap
@@ -29,7 +32,7 @@ coremap_init ()
 {
     unsigned long i, npages, size, extra_size;
 
-    spinlock_init(&cmap.c_lock);
+    spinlock_init(&cmap_lock);
 
     /* set the size of ram */
     cmap.ram_size = ram_getsize();
@@ -127,12 +130,63 @@ coremap_init ()
     for (i = 0; i < cmap.npages; ++i) {
         spinlock_init(&(cmap.pages[i].p_lock));
         cmap.pages[i].refcount = 0;
-        cmap.pages[i].refcount = 0;
+        cmap.pages[i].flags = 0;
         cmap.pages[i].dirty = 0;
         cmap.pages[i].id = 0;
     }
 }
 
+
+size_t
+get_ram_size ()
+{
+    return (size_t) cmap.ram_size;
+}
+
+size_t
+get_avail_memory ()
+{
+    return (size_t) (cmap.nfreepages * PAGE_SIZE);
+}
+
+
+
+#if COREMAP_DEBUG
+
+static
+void
+print_coremap_entry (struct page *p)
+{
+    KASSERT (p != NULL);
+    kprintf("\n");
+    if (p->refcount == 0)
+        kprintf("Free\n");
+    else
+        kprintf("Being Used\n");
+    kprintf("id: %p\n", (void *) p->id);
+    kprintf("refcount: %u\n", p->refcount);
+    kprintf("dirty: %u\n", p->dirty);
+    kprintf("flags: %u\n", p->flags);
+    kprintf("\n");
+}
+
+
+static
+void
+print_coremap (void)
+{
+    unsigned long i;
+
+    spinlock_acquire(&cmap_lock);
+    for (i = 0; i < cmap.npages; ++i) {
+        kprintf("----------------\n");
+        kprintf("index: %lu\n", i);
+        print_coremap_entry(&cmap.pages[i]);
+    }
+    spinlock_release(&cmap_lock);
+}
+
+#endif
 
 /*
  *  get_vaddr - get virtual addres for the given index of a page
@@ -144,8 +198,8 @@ get_vaddr (unsigned long i)
     paddr_t paddr;
     vaddr_t vaddr;
 
-    KASSERT(spinlock_do_i_hold(&cmap.c_lock));
-    KASSERT(i <= cmap.npages);
+    KASSERT(spinlock_do_i_hold(&cmap_lock));
+    KASSERT(i < cmap.npages);
 
     paddr = cmap.firstfree + (i * PAGE_SIZE);
     vaddr = PADDR_TO_KVADDR(paddr);
@@ -166,18 +220,142 @@ vm_bootstrap ()
 
 
 /*
+ *  find_tlb_entry - finds the invalid tlb entry
+ *                  returns index of tlb entry
+ *                  -1 if unable to find one
+ *
+ */
+static
+int
+find_tlb_entry ()
+{
+    int i, spl;
+    uint32_t ehi, elo;
+
+    spl = splhigh();
+
+	for (i=0; i<NUM_TLB; i++) {
+		tlb_read(&ehi, &elo, i);
+		if ((elo & TLBLO_VALID)) {
+			continue;
+		}
+		splx(spl);
+		return i;
+	}
+
+    splx(spl);
+    return -1;
+}
+
+
+/*
+ *  set_tlb_entry - sets the tlb entry
+ *                  tries to find an empty tlb entry or invalid one
+ *                  otherwise overwrites random tlb entry
+ *
+ */
+static
+void
+set_tlb_entry (uint32_t entryhi, uint32_t entrylo)
+{
+    int i;
+
+    i = find_tlb_entry();
+    entrylo |= TLBLO_VALID;
+
+    if (i >= 0 && i < NUM_TLB)
+        tlb_write(entryhi, entrylo, i);
+    else
+        tlb_random(entryhi, entrylo);
+}
+
+
+/*
  *  vm_fault - handle vm faults
  *
  */
 int
 vm_fault (int faulttype, vaddr_t faultaddress)
 {
-    (void) faulttype;
-    (void) faultaddress;
+	paddr_t paddr;
+    vaddr_t tmp_addr;
+	int spl, result, flags;
+	struct addrspace *as;
+    struct page_table_entry *pte;
+
+	if (curproc == NULL) {
+        return EFAULT;
+    }
+
+	as = proc_getas();
+	if (as == NULL) {
+		/*
+		 * No address space set up. This is probably also a
+		 * kernel fault early in boot.
+		 */
+		return EFAULT;
+	}
+
+	switch (faulttype) {
+        /* do not allow write to readonly segments */
+	    case VM_FAULT_READONLY:
+        return EPERM;
+        break;
+	    case VM_FAULT_READ:
+        break;
+	    case VM_FAULT_WRITE:
+        /* we've a write. make sure each process has it's own unique addrspace now */
+        if (as->as_copied == 0) {
+            result = as_actually_copy(as);
+            if (result)
+                return result;
+        }
+		break;
+	    default:
+		return EINVAL;
+	}
+
+    if (!as_is_addr_valid(as, faultaddress))
+        return EFAULT;
+
+    tmp_addr = faultaddress;
+    faultaddress &= PAGE_FRAME;
+
+    pte = as_get_pte(as, faultaddress);
+    if (pte == NULL) {
+        flags = as_get_flags(as, tmp_addr);
+        result = as_add_new_pte(as, faultaddress, flags, &pte);
+        if (result)
+            return result;
+    }
+
+    paddr = pte->pte_paddr;
+    flags = pte->pte_flags;
+
+	/* make sure it's page-aligned */
+	KASSERT((paddr & PAGE_FRAME) == paddr);
+
+	/* Disable interrupts on this CPU while probing the TLB. */
+	spl = splhigh();
+
+    if (faulttype == VM_FAULT_READ) {
+        if (flags & PF_W)
+            set_tlb_entry(faultaddress, paddr | TLBLO_DIRTY);
+        else
+            set_tlb_entry(faultaddress, paddr);
+    } else if (faulttype == VM_FAULT_WRITE) {
+        /* TODO: should executable segment have write permission? */
+        if ((flags & PF_X) || (flags & PF_W)) {
+            set_tlb_entry(faultaddress, paddr | TLBLO_DIRTY);
+        } else {
+            return EPERM;
+        }
+    }
+
+	splx(spl);
 
     return 0;
 }
-
 
 /*
  *  alloc_kpages - allocate n contiguous physical pages
@@ -186,28 +364,32 @@ vm_fault (int faulttype, vaddr_t faultaddress)
 vaddr_t
 alloc_kpages (unsigned npages)
 {
-    unsigned i, j, k;
-    unsigned long pi;
-    bool found_it;
+    unsigned long i, j, k;
+    bool found_it, tried_again;
     vaddr_t pages;
 
-    found_it = false;
+    found_it = tried_again = false;
 
-    spinlock_acquire(&cmap.c_lock);
+#if COREMAP_DEBUG
+    if ((cmap.npages - cmap.nfreepages) > 200) {
+        print_coremap();
+        panic("shit!\n");
+    }
+#endif
+
+    spinlock_acquire(&cmap_lock);
     if (npages > cmap.nfreepages)
         goto done;
 
-    pi = cmap.npages;
     if (cmap.next_free_page >= cmap.npages)
         cmap.next_free_page = 0;
 
 again:
     for (i = cmap.next_free_page; i < cmap.npages; ++i) {
         if (cmap.pages[i].refcount == 0) {
-            pi = i;
             found_it = true;
             for (k = 0, j = i; k < npages; ++j, ++k) {
-                if ((j >= cmap.npages) || cmap.pages[j].refcount > 0) {
+                if ((j >= cmap.npages) || cmap.pages[j].refcount != 0) {
                     found_it = false;
                     break;
                 }
@@ -216,27 +398,29 @@ again:
                 break;
         }
     }
-    if (!found_it && cmap.nfreepages > npages) {
+    if (!found_it && cmap.nfreepages >= npages && !tried_again) {
         cmap.next_free_page = 0;
+        tried_again = true;
         goto again;
     }
 
     if (found_it) {
-        pages = get_vaddr(pi);
+        pages = get_vaddr(i);
         for (k = 0, j = i; k < npages; ++j, ++k) {
             spinlock_acquire(&cmap.pages[j].p_lock);
             cmap.pages[j].id = pages;
             cmap.pages[j].refcount++;
+            bzero((void *) get_vaddr(j), PAGE_SIZE);
             spinlock_release(&cmap.pages[j].p_lock);
+            cmap.next_free_page++;
+            cmap.nfreepages--;
         }
-        cmap.next_free_page += npages;
-        cmap.nfreepages -= npages;
-        spinlock_release(&cmap.c_lock);
+        spinlock_release(&cmap_lock);
         return pages;
     }
 
 done:
-    spinlock_release(&cmap.c_lock);
+    spinlock_release(&cmap_lock);
     return (vaddr_t) 0;
 }
 
@@ -248,34 +432,26 @@ done:
 void
 free_kpages (vaddr_t addr)
 {
-    unsigned i, j, k;
+    unsigned i, j; //, k;
+
 
     /* Get the index of the page. Note: both work. */
     /* i = ((addr & PAGE_FRAME) - MIPS_KSEG0 - cmap.firstfre) / PAGE_SIZE; */
-    i = (addr - PADDR_TO_KVADDR(cmap.firstfree)) / PAGE_SIZE;
+    i = j = (addr - PADDR_TO_KVADDR(cmap.firstfree)) / PAGE_SIZE;
 
-    for (j = k = 0; i < cmap.npages; ++i) {
-        if (cmap.pages[i].id == addr) {
-            k = i;
-            j = 0;
-            while (cmap.pages[i].id == addr) {
-                spinlock_acquire(&cmap.pages[i].p_lock);
-                cmap.pages[i].refcount--;
-                cmap.pages[i].id = 0;
-                spinlock_release(&cmap.pages[i].p_lock);
-                ++j;
-                ++i;
-            }
-            break;
-        }
+    KASSERT (cmap.pages[i].id == addr);
+
+    spinlock_acquire(&cmap_lock);
+    for ( ; cmap.pages[i].id == addr; ++i) {
+        spinlock_acquire(&cmap.pages[i].p_lock);
+        cmap.pages[i].refcount--;
+        cmap.pages[i].id = 0;
+        spinlock_release(&cmap.pages[i].p_lock);
+        cmap.nfreepages++;
     }
-    if (j != 0) {
-        spinlock_acquire(&cmap.c_lock);
-        cmap.nfreepages += j;
-        if (cmap.next_free_page >= cmap.npages)
-            cmap.next_free_page = k;
-        spinlock_release(&cmap.c_lock);
-    }
+    if (cmap.next_free_page >= cmap.npages)
+        cmap.next_free_page = j;
+    spinlock_release(&cmap_lock);
 }
 
 

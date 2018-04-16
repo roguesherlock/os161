@@ -72,6 +72,7 @@ pid_t sys_getpid(void); /* as getpid does not fail, there's no point in returnin
 void sys__exit(int exitcode);
 int sys_waitpid(pid_t pid, int *status, int options, int32_t *retval);
 int sys_execv(const char *program, char **args, int32_t *retval);
+int sys_sbrk(intptr_t amount, int32_t *retval);
 
 /*
  * helper functions. Defined in various syscalls.

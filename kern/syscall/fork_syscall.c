@@ -11,27 +11,6 @@
 #include <files_table.h>
 
 
-// void
-// copy_tf(struct trapframe *src, struct trapframe *dst)
-// {
-//     KASSERT(src != NULL);
-//     KASSERT(dst != NULL);
-
-//     int i, len;
-//     // size_t len;
-
-//     /* utilizing the fact that every element in tf is uint32_t */
-//     uint32_t *s = (uint32_t *) src;
-//     uint32_t *d = (uint32_t *) dst;
-
-//     len = sizeof(*src) / sizeof(uint32_t);
-
-//     for (i = 0; i < len; ++i)
-//         d[i] = s[i];
-
-// }
-
-
 int
 sys_fork(struct trapframe *tf, int32_t *ret)
 {
@@ -50,7 +29,6 @@ sys_fork(struct trapframe *tf, int32_t *ret)
         return ENOMEM;
 
     memcpy(ntf, tf, sizeof(*ntf));
-    // copy_tf(tf, ntf);
 
     newp = NULL;
     result = proc_copy(src, &newp);

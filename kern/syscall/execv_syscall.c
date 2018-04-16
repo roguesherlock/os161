@@ -88,6 +88,8 @@ check_and_copy_args(char **args, int *argc, char ***argv, int *size)
 	size_t str_size;
 	char **head, **kdst, **usrc;
 
+	KASSERT (curproc != NULL);
+
 	i = 0;
 	args_size = 0;
 	pad_size = 0;
@@ -104,10 +106,11 @@ check_and_copy_args(char **args, int *argc, char ***argv, int *size)
 
 	while(*usrc) {
 		/* check if userptr is a valid ptr */
-		result = check_userptr ((const_userptr_t) *usrc);
-		if (result) {
+		// result = check_userptr ((const_userptr_t) *usrc);
+		if ((!as_is_addr_valid(curproc->p_addrspace, (vaddr_t) *usrc))) {
+		// if (result) {
 			free_args(i, head);
-			return result;
+			return EFAULT;
 		}
 		str_size = strlen(*usrc) + 1; 	/* account for \0 */
 		pad_size = PAD(str_size);
@@ -242,18 +245,13 @@ sys_execv (const char *program, char **args, int32_t *retval)
     vaddr_t entrypoint, stackptr;
 	userptr_t uargs;
 
+	KASSERT (curproc != NULL);
+
     *retval = -1;
 
-	/* check if program is a valid ptr */
-	result = check_userptr ((const_userptr_t) program);
-	if (result)
-		return result;
-
-	/* check if args is a valid ptr */
-	result = check_userptr ((const_userptr_t) args);
-	if (result)
-		return result;
-
+	if ((!as_is_addr_valid(curproc->p_addrspace, (vaddr_t) program))
+		|| (!as_is_addr_valid(curproc->p_addrspace, (vaddr_t) args)))
+		return EFAULT;
 
 	psize = strlen(program) + 1;
 	pname = kmalloc(psize);
@@ -261,18 +259,25 @@ sys_execv (const char *program, char **args, int32_t *retval)
 		return ENOMEM;
 
 	result = copyin((const_userptr_t) program, pname, psize);
-	if (result)
+	if (result) {
+		kfree(pname);
 		return result;
+	}
 
 	/* copy args to kernel space */
 	result = check_and_copy_args(args, &kargc, &kargs, &args_size);
-	if (result)
+	if (result) {
+		kfree(pname);
 		return result;
+	}
 
 	/* *kargs points to program name copied to kernel space */
 	result = vfs_open(pname, O_RDONLY, 0, &v);
-	if (result)
+	if (result) {
+		free_args(kargc, kargs);
+		kfree(pname);
 		return result;
+	}
 
 	/* free program name */
 	kfree(pname);
@@ -287,6 +292,7 @@ sys_execv (const char *program, char **args, int32_t *retval)
 	as = as_create();
 	if (as == NULL) {
 		vfs_close(v);
+		free_args(kargc, kargs);
 		return ENOMEM;
 	}
 
@@ -299,6 +305,7 @@ sys_execv (const char *program, char **args, int32_t *retval)
 	if (result) {
 		/* p_addrspace will go away when curproc is destroyed */
 		vfs_close(v);
+		free_args(kargc, kargs);
 		return result;
 	}
 
@@ -308,6 +315,7 @@ sys_execv (const char *program, char **args, int32_t *retval)
 	/* Define the user stack in the address space */
 	result = as_define_stack(as, &stackptr);
 	if (result) {
+		free_args(kargc, kargs);
 		/* p_addrspace will go away when curproc is destroyed */
 		return result;
 	}
@@ -317,6 +325,9 @@ sys_execv (const char *program, char **args, int32_t *retval)
 		free_args(kargc, kargs);
 		return result;
 	}
+
+	/* free kargs */
+	free_args(kargc, kargs);
 
 	/* Warp to user mode. */
 	enter_new_process(kargc /*argc*/, uargs /*userspace addr of argv*/,
