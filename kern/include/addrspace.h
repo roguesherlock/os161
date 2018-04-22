@@ -49,7 +49,6 @@ struct segment {
         vaddr_t sg_vbase;
         size_t sg_size;
         unsigned sg_flags:16;
-        unsigned sg_refcount:16;
         struct segment *next;
 };
 
@@ -72,8 +71,6 @@ struct addrspace {
         size_t as_npages2;
         paddr_t as_stackpbase;
 #else
-        unsigned as_copied:1;
-
         /* linked list of page table entries */
         struct page_table_entry *as_page_table;
 

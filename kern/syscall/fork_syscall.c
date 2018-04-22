@@ -39,7 +39,7 @@ sys_fork(struct trapframe *tf, int32_t *ret)
     *ret = newp->pid;
     set_proc(newp->pid, newp);
 
-    thread_fork(src->p_name, newp,
+    thread_fork(newp->p_name, newp,
                 help_enter_forked_process,
                 (void *) ntf, (unsigned long) 1);
 

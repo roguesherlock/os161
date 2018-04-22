@@ -104,7 +104,6 @@ struct page_table_entry {
     paddr_t pte_paddr;           /* Physical Page NUmber */
 
     unsigned pte_flags:8;           /* Page flags */
-    unsigned pte_refcount:8;        /* number threads using this page */
     unsigned pte_refrenced:8;       /* Is page refrenced recently? */
     unsigned pte_in_memory:8;       /* Is page in memory? */
 

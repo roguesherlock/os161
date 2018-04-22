@@ -4,8 +4,8 @@
 
 -   #### A better scheduling algorithm (Optional).
 -   #### ASST 3.2 User Paging
-        -   check execv
-        -   Stop disabling interrupts!
+        -   check memory leaks
+        -   pass sbrktest
 -   #### ASST 3.3 Swapping
 
 ## bugs

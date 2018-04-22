@@ -302,14 +302,7 @@ vm_fault (int faulttype, vaddr_t faultaddress)
         return EPERM;
         break;
 	    case VM_FAULT_READ:
-        break;
 	    case VM_FAULT_WRITE:
-        /* we've a write. make sure each process has it's own unique addrspace now */
-        if (as->as_copied == 0) {
-            result = as_actually_copy(as);
-            if (result)
-                return result;
-        }
 		break;
 	    default:
 		return EINVAL;

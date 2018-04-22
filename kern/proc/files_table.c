@@ -13,7 +13,6 @@
 #include <files_table.h>
 
 
-
 /*
  *    files_table_create - create a new empty files table. May
  *                      return proper errno on error.
@@ -123,15 +122,14 @@ files_table_get_next_fd (struct files_table *ft, int *fd)
         return 0;
     }
 
-    for (i = 3; i < NR_OPEN_DEFAULT; ++i) {
-        if (ft->fd_array[i] == NULL) {
-            if (!found_fd) {
-                *fd = i;
-                continue;
-            } else {
-                ft->next_fd = i;
-                break;
-            }
+    if (ft->next_fd >= NR_OPEN_DEFAULT)
+        ft->next_fd = 3;
+
+    for (i = ft->next_fd; i < NR_OPEN_DEFAULT; ++i) {
+        if (ft->fd_array[i] == NULL && !found_fd) {
+            *fd = i;
+            found_fd = true;
+            ft->next_fd = i + 1;
         }
     }
     spinlock_release(&ft->ft_lock);

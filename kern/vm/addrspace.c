@@ -54,8 +54,6 @@ as_create(void)
 	if (as == NULL)
 		return NULL;
 
-	as->as_copied = 1;
-
 	as->as_page_table = NULL;
 	as->as_segments = NULL;
 
@@ -66,68 +64,20 @@ as_create(void)
 int
 as_copy(struct addrspace *old, struct addrspace **ret)
 {
-	int spl;
+	int result;
 	struct addrspace *newas;
-	struct segment *sg_ptr;
-	struct page_table_entry *pte_ptr;
+	struct segment *sg_ptr, *new_sg;
+	struct page_table_entry *pte_ptr, *new_pte;
 
 
 	KASSERT (old != NULL);
 	KASSERT (ret != NULL);
-	KASSERT (old->as_copied == 1);
 
-	newas = kmalloc (sizeof(*newas));
+	newas = as_create();
 	if (newas == NULL)
 		return ENOMEM;
 
-	newas->as_copied = 0;
-
-	spl = splhigh();
-
-	for(sg_ptr = old->as_segments; sg_ptr != NULL; sg_ptr = sg_ptr->next)
-		sg_ptr->sg_refcount++;
-
-	for (pte_ptr = old->as_page_table; pte_ptr != NULL; pte_ptr = pte_ptr->next)
-		pte_ptr->pte_refcount++;
-
-	newas->stack.sg_vbase = old->stack.sg_vbase;
-	newas->stack.sg_size = old->stack.sg_size;
-	newas->stack.sg_flags = old->stack.sg_flags;
-	newas->stack.sg_refcount = 1;
-	newas->stack.next = NULL;
-
-	newas->heap.sg_vbase = old->heap.sg_vbase;
-	newas->heap.sg_size = old->heap.sg_size;
-	newas->heap.sg_flags = old->heap.sg_flags;
-	newas->heap.sg_refcount = 1;
-	newas->heap.next = NULL;
-
-	splx(spl);
-
-	newas->as_segments = old->as_segments;
-	newas->as_page_table = old->as_page_table;
-
-	*ret = newas;
-
-	return 0;
-}
-
-
-int
-as_actually_copy(struct addrspace *as)
-{
-	int spl, result;
-	struct segment *sg_ptr, *new_sg;
-	struct page_table_entry *pte_ptr, *new_pte;
-
-	KASSERT (as != NULL);
-	KASSERT (as->as_copied == 0);
-
-	as->as_copied = 1;
-
-	sg_ptr = as->as_segments;
-	as->as_segments = NULL;		/* to make sure it now points to its own segments */
-	for (; sg_ptr != NULL; sg_ptr = sg_ptr->next) {
+	for (sg_ptr = old->as_segments; sg_ptr != NULL; sg_ptr = sg_ptr->next) {
 		new_sg = kmalloc (sizeof(*new_sg));
 		if (new_sg == NULL)
 			return ENOMEM;
@@ -135,27 +85,30 @@ as_actually_copy(struct addrspace *as)
 		new_sg->sg_vbase = sg_ptr->sg_vbase;
 		new_sg->sg_size = sg_ptr->sg_size;
 		new_sg->sg_flags = sg_ptr->sg_flags;
-		new_sg->sg_refcount = 1;
-		new_sg->next = as->as_segments;
-		as->as_segments = new_sg;
-
-		spl = splhigh();
-		sg_ptr->sg_refcount--;
-		splx(spl); /* lol! don't do this on real systems */
+		new_sg->next = newas->as_segments;
+		newas->as_segments = new_sg;
 	}
 
-	pte_ptr = as->as_page_table;
-	as->as_page_table = NULL;	/* to make sure it now points to its own pte's */
-	for (; pte_ptr != NULL; pte_ptr = pte_ptr->next) {
-		result = as_add_new_pte(as, pte_ptr->pte_vaddr, pte_ptr->pte_flags, &new_pte);
+	for (pte_ptr = old->as_page_table; pte_ptr != NULL; pte_ptr = pte_ptr->next) {
+		result = as_add_new_pte(newas, pte_ptr->pte_vaddr, pte_ptr->pte_flags, &new_pte);
 		if (result)
 			return result;
 
 		memcpy((void *) PADDR_TO_KVADDR(new_pte->pte_paddr), (const void *) PADDR_TO_KVADDR(pte_ptr->pte_paddr), PAGE_SIZE);
-		spl = splhigh();
-		pte_ptr->pte_refcount--;
-		splx(spl); 	/* Seriously! don't do this on real systems*/
 	}
+
+
+	newas->stack.sg_vbase = old->stack.sg_vbase;
+	newas->stack.sg_size = old->stack.sg_size;
+	newas->stack.sg_flags = old->stack.sg_flags;
+	newas->stack.next = NULL;
+
+	newas->heap.sg_vbase = old->heap.sg_vbase;
+	newas->heap.sg_size = old->heap.sg_size;
+	newas->heap.sg_flags = old->heap.sg_flags;
+	newas->heap.next = NULL;
+
+	*ret = newas;
 
 	return 0;
 }
@@ -173,19 +126,16 @@ as_destroy(struct addrspace *as)
 	while (sg_ptr != NULL) {
 		sg_tmp = sg_ptr;
 		sg_ptr = sg_ptr->next;
-		if (--sg_tmp->sg_refcount == 0)
-			kfree(sg_tmp);
+		kfree(sg_tmp);
 	}
 
 	pte_ptr = as->as_page_table;
 	while (pte_ptr != NULL) {
 		pte_tmp = pte_ptr;
 		pte_ptr = pte_ptr->next;
-		if (--pte_tmp->pte_refcount == 0) {
-			/* as we explicitly used alloc_kpages when creating */
-			free_kpages(PADDR_TO_KVADDR(pte_tmp->pte_paddr));
-			kfree(pte_tmp);
-		}
+		/* as we explicitly used alloc_kpages when creating */
+		free_kpages(PADDR_TO_KVADDR(pte_tmp->pte_paddr));
+		kfree(pte_tmp);
 	}
 	kfree(as);
 }
@@ -258,7 +208,6 @@ as_define_region(struct addrspace *as, vaddr_t vaddr, size_t memsize,
 	new_sg->sg_vbase = vaddr;
 	new_sg->sg_size = memsize;
 	new_sg->sg_flags = readable | writeable | executable;
-	new_sg->sg_refcount = 1;
 	new_sg->next = as->as_segments;
 
 	as->as_segments = new_sg;
@@ -287,7 +236,6 @@ as_prepare_load(struct addrspace *as)
 	as->heap.sg_vbase = heap_base;
 	as->heap.sg_size = 0;
 	as->heap.sg_flags = PF_R | PF_W;
-	as->heap.sg_refcount = 1;
 	as->heap.next = NULL;
 
 	return 0;
@@ -312,7 +260,6 @@ as_define_stack(struct addrspace *as, vaddr_t *stackptr)
 	as->stack.sg_vbase = USERSTACK;
 	as->stack.sg_size = STACK_CHUNK * PAGE_SIZE;
 	as->stack.sg_flags = PF_R | PF_W;
-	as->stack.sg_refcount = 1;
 	as->stack.next = NULL;
 
 	return 0;
@@ -415,7 +362,6 @@ as_add_new_pte (struct addrspace *as, vaddr_t vaddr, unsigned flags, struct page
 	new_pte->pte_vaddr = vaddr;
 	new_pte->pte_paddr = GET_PHYSICAL_ADDR(addr);
 	new_pte->pte_flags = flags;
-	new_pte->pte_refcount = 1;
 	new_pte->pte_refrenced = 1;
 	new_pte->pte_in_memory = 1;
 	new_pte->next = as->as_page_table;
