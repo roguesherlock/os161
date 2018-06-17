@@ -13,8 +13,8 @@
 |   PID: Process ID                                     |
 |   PPID: Parent Process ID                             |
 |   Exit Status: Process's exit status                  |
-|   p_state: Process's active status                    |
-|   wchan: for waitpid                                  |
+|   exit_sem:                                           |
+|   Exited                                              |
 ---------------------------------------------------------
 
 
@@ -68,3 +68,15 @@
     `int proc_copy(struct proc *src, struct proc **dst);`
 
 
+
+<br/>
+
+
+
+
+## Source
+
+-   [proc.h][1]
+
+
+[1]:../kern/include/proc.h

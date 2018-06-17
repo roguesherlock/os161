@@ -42,9 +42,14 @@ The following error codes should be returned under the conditions given. Other [
 -   **EFAULT** : filename was an invalid pointer.
 
 
+
+<br/>
+
+
+
 ## Source
 
-[open_syscall.c][2]
+-   [open_syscall.c][2]
 
 
 

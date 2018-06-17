@@ -33,9 +33,6 @@ proc_table_create(struct proc_table **pt)
     for (i = 0; i < MAX_ACTIVE_PROC; ++i)
         npt->p_array[i] = NULL;
 
-    for (i = 0; i < MAX_INACTIVE_PROC; ++i)
-        npt->rogue_procs[i] = NULL;
-
     *pt = npt;
 }
 
@@ -53,13 +50,10 @@ proc_table_destroy(struct proc_table *pt)
 
     int i;
 
-    if (pt->pnum != 0) {
-        // spinlock_acquire(&pt->pt_lock);
+    if (pt->pnum != 0)
         for (i = PID_MIN; i < MAX_ACTIVE_PROC; ++i)
             if (pt->p_array[i] != NULL)
                 proc_destroy(pt->p_array[i]);
-        // spinlock_release(&pt->pt_lock);
-    }
 
     spinlock_cleanup(&pt->pt_lock);
     kfree(pt);
@@ -82,61 +76,6 @@ proc_table_is_empty()
     spinlock_release(&pt->pt_lock);
 
     return is_empty;
-}
-
-
-/*
- *  proc_destroyer - destroy every rogue process
- *                  muuuhaaahaaahaaa!
- *
- */
-void
-proc_destroyer (void)
-{
-    int i;
-
-    KASSERT(pt != NULL);
-
-    for (i = 0; i < MAX_INACTIVE_PROC; ++i)
-        if (pt->rogue_procs[i])
-            proc_destroy(pt->rogue_procs[i]);
-
-    spinlock_acquire(&pt->pt_lock);
-    for (i = 0; i < MAX_INACTIVE_PROC; ++i)
-        pt->rogue_procs[i] = NULL;
-    pt->next_rogue_i = 0;
-    spinlock_release(&pt->pt_lock);
-}
-
-
-/*
- *  mark_proc_for_deletion - add proc to rogue process array
- *                          destroy all if arrya full
- *                          muuuhaaahaaahaaa!
- *
- */
-void
-mark_proc_for_deletion (struct proc *p)
-{
-    KASSERT(pt != NULL);
-
-    if (p == NULL)
-        return;
-
-    spinlock_acquire(&pt->pt_lock);
-    if (pt->next_rogue_i >= MAX_INACTIVE_PROC) {
-        /*
-         * can't have spinlocks when deleting. Why?
-         * dumbvm can sleep!
-         * 
-         */
-        spinlock_release(&pt->pt_lock);
-        proc_destroyer();
-        spinlock_acquire(&pt->pt_lock);
-    }
-    p->rogue = true;
-    pt->rogue_procs[pt->next_rogue_i++] = p;
-    spinlock_release(&pt->pt_lock);
 }
 
 

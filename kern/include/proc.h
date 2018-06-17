@@ -37,19 +37,12 @@
  */
 
 #include <spinlock.h>
-#include <wchan.h>
 #include <synch.h>
 
 struct addrspace;
 struct thread;
 struct vnode;
 struct files_table;
-
-/* States process can be in */
-typedef enum {
-	PS_ACTIVE,
-	PS_INACTIVE
-}proc_state;
 
 /*
  * Process structure.
@@ -76,11 +69,10 @@ struct proc {
 	pid_t ppid;					/* Process's parent ID */
 	struct proc *parent;		/* parent */
 	int exit_status;			/* Process's exit status */
-	proc_state p_state;			/* Process's active status */
-	bool rogue;					/* Is process rogue? kinda like zombie*/
+	bool exited;				/* has process exited? */
 
 	/* for waitpid */
-	struct wchan *p_wait;
+	struct semaphore *exit_sem;
 
 	/* VM */
 	struct addrspace *p_addrspace;	/* virtual address space */

@@ -17,31 +17,10 @@
 void
 sys__exit (int exitcode)
 {
-    struct proc *p;
+    KASSERT (curproc != NULL);
 
-    p = curthread->t_proc;
-
-    KASSERT (p != NULL);
-
-    /* set process exit code and status */
-    spinlock_acquire(&p->p_lock);
-    p->p_state = PS_INACTIVE;
-    p->exit_status = _MKWAIT_EXIT(exitcode);
-    if (wchan_isempty(p->p_wait, &p->p_lock) && p->rogue) {
-        /*
-         * can't have spinlocks when deleting. Why?
-         * dumbvm can sleep!
-         *
-         */
-        spinlock_release(&p->p_lock);
-        mark_proc_for_deletion(p);
-    } else {
-        /* notify parent */
-        wchan_wakeall(p->p_wait, &p->p_lock);
-        spinlock_release(&p->p_lock);
-    }
-
-
-    /* exit thread */
+    curproc->exited = true;
+    curproc->exit_status = _MKWAIT_EXIT(exitcode);
+    V(curproc->exit_sem);
     thread_exit();
 }

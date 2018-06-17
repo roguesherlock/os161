@@ -16,6 +16,7 @@
 #include <file_handle.h>
 #include <files_table.h>
 #include <proc.h>
+#include <addrspace.h>
 #include <vfs.h>
 #include <vnode.h>
 #include <copyinout.h>
@@ -32,18 +33,23 @@ sys_open(const char *filename, int flags, int32_t *fd)
     size_t len;
     int result;
 
+    KASSERT (curproc != NULL);
+
     *fd = -1;
     file = NULL;
     ft = NULL;
     fh = NULL;
     mode = 0644;    /* Note: this is dummy. It's not used whatsoever in this implementation */
 
-    if (filename == NULL)
+    // if (filename == NULL)
+    //     return EFAULT;
+
+    if (filename == NULL || (!as_is_addr_valid(curproc->p_addrspace, (vaddr_t) filename)))
         return EFAULT;
 
-    result = check_userptr((const_userptr_t) filename);
-    if (result)
-        return result;
+    // result = check_userptr((const_userptr_t) filename);
+    // if (result)
+    //     return result;
 
     len = strlen(filename) + 1;
     fname = kmalloc(len);
@@ -52,11 +58,11 @@ sys_open(const char *filename, int flags, int32_t *fd)
 
     result = copyinstr((const_userptr_t)filename, fname, len, NULL);
     if (result)
-        return result;
+        goto err;
 
     result = vfs_open(fname, flags, mode, &file);
     if (result)
-        return result;
+        goto err;
 
     ft = curproc->files;
 
@@ -64,15 +70,20 @@ sys_open(const char *filename, int flags, int32_t *fd)
 
     result = file_handle_create(file, flags, 0, &fh);
     if (result)
-        return result;
+        goto err;
 
     result = files_table_get_next_fd(ft, (int *)fd);
     if (result)
-        return result;
+        goto err;
 
     ft->fd_array[*fd] = fh;
 
+    kfree(fname);
     return 0;
+
+err:
+    kfree(fname);
+    return result;
 
 }
 

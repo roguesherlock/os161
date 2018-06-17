@@ -13,27 +13,25 @@
 #include <current.h>
 #include <syscall.h>
 #include <copyinout.h>
+#include <addrspace.h>
 #include <wchan.h>
 
 int
 sys_waitpid (pid_t pid, int *status, int options, int32_t *retval)
 {
-    bool no_one_is_waiting;
     int result, p_status;
-    struct proc *p, *cp;
+    struct proc *p_child;
 
-    p = NULL;
-    cp = curthread->t_proc;
-    no_one_is_waiting = false;
+    KASSERT (curproc != NULL);
 
     result = 0;
     *retval = -1;
 
-    result = get_proc(pid, &p);
+    result = get_proc(pid, &p_child);
     if (result)
         return result;
 
-    if (cp != p->parent)
+    if (curproc != p_child->parent)
         return ECHILD;
 
     /* filter out supported options */
@@ -46,23 +44,20 @@ sys_waitpid (pid_t pid, int *status, int options, int32_t *retval)
             return EINVAL;
     }
 
-    if ((options == WNOHANG) && (p->p_state == PS_ACTIVE)) {
+    if ((options == WNOHANG) && !p_child->exited) {
         *retval = 0;
         return result;
     }
 
-    /* check if status ptr is valid before sleeping */
-    result = check_userptr ((const_userptr_t) status);
-    if (result)
-        if (status != NULL)     /* NULL ptr is allowed */
-            return result;
+    if (status != NULL && (!as_is_addr_valid(curproc->p_addrspace, (vaddr_t) status)))
+        return EFAULT;
 
-    spinlock_acquire(&p->p_lock);
-    while (p->p_state == PS_ACTIVE)
-        wchan_sleep(p->p_wait, &p->p_lock);
-    spinlock_release(&p->p_lock);
+    if (!p_child->exited)
+        P(p_child->exit_sem);
 
-    p_status = p->exit_status;
+    KASSERT (p_child->exited);
+
+    p_status = p_child->exit_status;
 
     if (status) {
         result = copyout((const void *) &p_status, (userptr_t) status, sizeof(int));
@@ -70,13 +65,9 @@ sys_waitpid (pid_t pid, int *status, int options, int32_t *retval)
             return result;
     }
 
-    *retval = pid;
+    proc_destroy(p_child);
 
-    spinlock_acquire(&p->p_lock);
-    no_one_is_waiting = wchan_isempty(p->p_wait, &p->p_lock);
-    spinlock_release(&p->p_lock);
-    if (no_one_is_waiting && status && p->rogue)
-        mark_proc_for_deletion(p);
+    *retval = pid;
 
     return 0;
 }

@@ -108,6 +108,10 @@ boot(void)
 
 	/* Early initialization. */
 	ram_bootstrap();
+	#if !OPT_DUMBVM
+	coremap_init();
+	#endif
+
 	proc_bootstrap();
 	thread_bootstrap();
 	hardclock_bootstrap();
