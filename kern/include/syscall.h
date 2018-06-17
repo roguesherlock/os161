@@ -45,6 +45,7 @@ void syscall(struct trapframe *tf);
  */
 
 /* Helper for fork(). You write this. */
+void help_enter_forked_process(void * data1, unsigned long data2);
 void enter_forked_process(struct trapframe *tf);
 
 /* Enter user mode. Does not return. */
@@ -58,5 +59,25 @@ __DEAD void enter_new_process(int argc, userptr_t argv, userptr_t env,
 
 int sys_reboot(int code);
 int sys___time(userptr_t user_seconds, userptr_t user_nanoseconds);
+int sys_open(const char *filename, int flags, int32_t *fd);
+int sys_read(int fd, void *buf, size_t buflen, int32_t *read);
+int sys_write(int fd, const void *buf, size_t buflen, int32_t *wrote);
+int sys_lseek(int fd, off_t pos, int whence, int32_t *retval, int32_t *retval2);
+int sys_close(int fd, int32_t *result);
+int sys_dup2(int oldfd, int newfd, int32_t *result); /* TODO: make return value names consistent */
+int sys_chdir(const char *pathname, int32_t *retval);
+int sys___getcwd(char *buf, size_t buflen, int32_t *retval);
+int sys_fork(struct trapframe *tf, int32_t *ret);
+pid_t sys_getpid(void); /* as getpid does not fail, there's no point in returning with status */
+void sys__exit(int exitcode);
+int sys_waitpid(pid_t pid, int *status, int options, int32_t *retval);
+int sys_execv(const char *program, char **args, int32_t *retval);
+int sys_sbrk(intptr_t amount, int32_t *retval);
+
+/*
+ * helper functions. Defined in various syscalls.
+ */
+// void copy_tf(struct trapframe *src, struct trapframe *dst); /* defined in fork_syscall.c */
+
 
 #endif /* _SYSCALL_H_ */

@@ -28,6 +28,8 @@
  */
 
 #include <types.h>
+#include <kern/errno.h>
+#include <kern/wait.h>
 #include <signal.h>
 #include <lib.h>
 #include <mips/specialreg.h>
@@ -39,6 +41,8 @@
 #include <vm.h>
 #include <mainbus.h>
 #include <syscall.h>
+#include <proc.h>
+#include <proc_table.h>
 
 
 /* in exception-*.S */
@@ -75,6 +79,9 @@ kill_curthread(vaddr_t epc, unsigned code, vaddr_t vaddr)
 {
 	int sig = 0;
 
+	(void) vaddr;
+	(void) epc;
+
 	KASSERT(code < NTRAPCODES);
 	switch (code) {
 	    case EX_IRQ:
@@ -108,13 +115,17 @@ kill_curthread(vaddr_t epc, unsigned code, vaddr_t vaddr)
 		break;
 	}
 
-	/*
-	 * You will probably want to change this.
-	 */
 
-	kprintf("Fatal user mode trap %u sig %d (%s, epc 0x%x, vaddr 0x%x)\n",
-		code, sig, trapcodenames[code], epc, vaddr);
-	panic("I don't know how to handle this\n");
+    /* set process exit code and status */
+	curproc->exited = true;
+	if (sig == SIGSEGV)
+    	curproc->exit_status = _MKWAIT_CORE(sig);
+	else
+		curproc->exit_status = _MKWAIT_SIG(sig);
+	V(curproc->exit_sem);
+
+    /* exit thread */
+    thread_exit();
 }
 
 /*

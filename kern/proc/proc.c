@@ -48,11 +48,18 @@
 #include <current.h>
 #include <addrspace.h>
 #include <vnode.h>
+#include <files_table.h>
+#include <lib.h>
+#include <synch.h>
+#include <proc_table.h>
+#include <kern/errno.h>
+#include <thread.h>
 
 /*
  * The process for the kernel; this holds all the kernel-only threads.
  */
 struct proc *kproc;
+struct proc_table *pt;
 
 /*
  * Create a proc structure.
@@ -61,26 +68,62 @@ static
 struct proc *
 proc_create(const char *name)
 {
+	bool is_kproc;
+	int result;
 	struct proc *proc;
+
+	is_kproc = (strcmp(name, "[kernel]") == 0);
 
 	proc = kmalloc(sizeof(*proc));
 	if (proc == NULL) {
 		return NULL;
 	}
+
 	proc->p_name = kstrdup(name);
 	if (proc->p_name == NULL) {
 		kfree(proc);
 		return NULL;
 	}
 
+	proc->exit_sem = sem_create(name, 0);
+	if (proc->exit_sem == NULL) {
+		kfree(proc->p_name);
+		kfree(proc);
+		return NULL;
+	}
+
+	if (is_kproc) {
+		proc->pid = 1;
+		proc->parent = NULL;
+		proc->ppid = 0;
+	} else {
+		proc->parent = curproc;
+		proc->ppid = curproc->pid;
+		result = get_pid(&proc->pid);
+		if (result) {
+			sem_destroy(proc->exit_sem);
+			kfree(proc->p_name);
+			kfree(proc);
+			return NULL;
+		}
+	}
+
 	proc->p_numthreads = 0;
 	spinlock_init(&proc->p_lock);
+
+	/* files table fields */
+	proc->files = NULL;
 
 	/* VM fields */
 	proc->p_addrspace = NULL;
 
 	/* VFS fields */
 	proc->p_cwd = NULL;
+
+	/* process thread */
+	proc->p_thread = NULL;
+
+	proc->exited = false;
 
 	return proc;
 }
@@ -104,6 +147,9 @@ proc_destroy(struct proc *proc)
 
 	KASSERT(proc != NULL);
 	KASSERT(proc != kproc);
+
+	proc->p_thread = NULL;
+	proc->parent = NULL;
 
 	/*
 	 * We don't take p_lock in here because we must have the only
@@ -165,6 +211,10 @@ proc_destroy(struct proc *proc)
 		as_destroy(as);
 	}
 
+	files_table_destroy(proc->files);
+	rel_pid(proc->pid);
+	sem_destroy(proc->exit_sem);
+
 	KASSERT(proc->p_numthreads == 0);
 	spinlock_cleanup(&proc->p_lock);
 
@@ -178,10 +228,22 @@ proc_destroy(struct proc *proc)
 void
 proc_bootstrap(void)
 {
+	proc_table_create(&pt);
 	kproc = proc_create("[kernel]");
 	if (kproc == NULL) {
 		panic("proc_create for kproc failed\n");
 	}
+	files_table_create(&kproc->files);
+	if(kproc->files == NULL)
+		panic("files_table_create for kproc failed\n");
+
+
+	/* bypass set_proc and just set kproc in process table
+	 * Note: kproc is not accounted for in number of active process
+	 */
+	spinlock_acquire(&pt->pt_lock);
+	pt->p_array[kproc->pid] = kproc;
+	spinlock_release(&pt->pt_lock);
 }
 
 /*
@@ -194,9 +256,17 @@ struct proc *
 proc_create_runprogram(const char *name)
 {
 	struct proc *newproc;
+	int result;
 
 	newproc = proc_create(name);
 	if (newproc == NULL) {
+		return NULL;
+	}
+
+	/* files table fields */
+	result = files_table_create(&newproc->files);
+	if (result) {
+		proc_destroy(newproc);
 		return NULL;
 	}
 
@@ -218,6 +288,12 @@ proc_create_runprogram(const char *name)
 	}
 	spinlock_release(&curproc->p_lock);
 
+	result = files_table_assign_default_handles(newproc->files);
+	if (result)
+		panic("[!] Unable to assign default file handles. Error Code: %d\n", result);
+
+	set_proc(newproc->pid, newproc);
+
 	return newproc;
 }
 
@@ -238,6 +314,9 @@ proc_addthread(struct proc *proc, struct thread *t)
 	KASSERT(t->t_proc == NULL);
 
 	spinlock_acquire(&proc->p_lock);
+	/* kproc has multiple threads. */
+	if (proc != kproc)
+		proc->p_thread = t;
 	proc->p_numthreads++;
 	spinlock_release(&proc->p_lock);
 
@@ -269,6 +348,8 @@ proc_remthread(struct thread *t)
 	spinlock_acquire(&proc->p_lock);
 	KASSERT(proc->p_numthreads > 0);
 	proc->p_numthreads--;
+	if (proc != kproc)
+		proc->p_thread = NULL;
 	spinlock_release(&proc->p_lock);
 
 	spl = splhigh();
@@ -317,4 +398,44 @@ proc_setas(struct addrspace *newas)
 	proc->p_addrspace = newas;
 	spinlock_release(&proc->p_lock);
 	return oldas;
+}
+
+
+int
+proc_copy(struct proc *src, struct proc **dst)
+{
+    int result;
+	struct proc *newp;
+
+    KASSERT(src != NULL);
+
+    newp = proc_create(src->p_name);
+    if (newp == NULL)
+        return ENOMEM;
+
+    newp->parent = src;
+    newp->ppid = src->pid;
+
+    result = as_copy(src->p_addrspace, &newp->p_addrspace);
+    if (result)
+        goto err;
+
+    result = files_table_copy(src->files, &newp->files);
+    if (result)
+        goto err;
+
+	spinlock_acquire(&src->p_lock);
+	if (src->p_cwd != NULL) {
+		VOP_INCREF(src->p_cwd);
+		newp->p_cwd = src->p_cwd;
+	}
+	spinlock_release(&src->p_lock);
+
+	*dst = newp;
+
+    return 0;
+
+err:
+	proc_destroy(newp);
+    return result;
 }

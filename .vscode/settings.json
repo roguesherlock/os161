@@ -1,0 +1,42 @@
+{
+    "spellright.language": "en",
+    "spellright.documentTypes": [
+        "markdown",
+        "latex",
+        "plaintext"
+    ],
+    "files.associations": {
+        "unistd.h": "c",
+        "files_table.h": "c",
+        "current.h": "c",
+        "copyinout.h": "c",
+        "spinlock.h": "c",
+        "file_handle.h": "c",
+        "types.h": "c",
+        "lib.h": "c",
+        "errno.h": "c",
+        "vnode.h": "c",
+        "synch.h": "c",
+        "fcntl.h": "c",
+        "time.h": "c",
+        "test161.h": "c",
+        "err.h": "c",
+        "cpu.h": "c",
+        "syscall.h": "c",
+        "addrspace.h": "c",
+        "opt-dumbvm.h": "c",
+        "opt-noasserts.h": "c",
+        "proc.h": "c",
+        "proc_table.h": "c",
+        "threadprivate.h": "c",
+        "string.h": "c",
+        "semfs.h": "c",
+        "stdlib.h": "c",
+        "stdio.h": "c",
+        "cdefs.h": "c",
+        "stdarg.h": "c",
+        "limits.h": "c",
+        "spl.h": "c"
+    },
+    "C_Cpp.errorSquiggles": "Disabled"
+}

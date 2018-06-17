@@ -69,13 +69,37 @@
 #include <test.h>
 #include <synch.h>
 
+#define NQUADRANTS 4
+static bool is_available[NQUADRANTS];
+static struct semaphore *quadrantsem[NQUADRANTS];
+static struct spinlock quadrantspn;
+static struct cv *wftcv;
+static struct lock *wftlk;
+
+static bool check_and_acquire(int [], size_t);
+static void make_available(int);
+
 /*
  * Called by the driver during initialization.
  */
 
 void
 stoplight_init() {
-	return;
+	int i;
+
+	for (i=0; i<NQUADRANTS; ++i)  {
+		is_available[i] = true;
+		quadrantsem[i] = sem_create("quadrantsem", 1);
+		KASSERT(quadrantsem[i] != NULL);
+	}
+
+	wftcv = cv_create("wftcv");
+	wftlk = lock_create("wftcv");
+
+	KASSERT(wftcv != NULL);
+	KASSERT(wftlk != NULL);
+
+	spinlock_init(&quadrantspn);
 }
 
 /*
@@ -83,36 +107,128 @@ stoplight_init() {
  */
 
 void stoplight_cleanup() {
-	return;
+	int i;
+
+	for (i=0; i<NQUADRANTS; ++i)  {
+		KASSERT(quadrantsem[i] != NULL);
+		sem_destroy(quadrantsem[i]);
+		quadrantsem[i] = NULL;
+	}
+
+	KASSERT(wftcv != NULL);
+	KASSERT(wftlk != NULL);
+
+	cv_destroy(wftcv);
+	lock_destroy(wftlk);
+
+	wftcv = NULL;
+	wftlk = NULL;
+
+	spinlock_cleanup(&quadrantspn);
 }
 
 void
 turnright(uint32_t direction, uint32_t index)
 {
-	(void)direction;
-	(void)index;
-	/*
-	 * Implement this function.
-	 */
-	return;
+	int cq[1];
+
+	cq[0] = (int) direction;
+
+	while (!check_and_acquire(cq, 1)) {
+		lock_acquire(wftlk);
+		cv_wait(wftcv, wftlk);
+		lock_release(wftlk);
+	}
+
+	inQuadrant(cq[0], index);
+	leaveIntersection(index);
+
+	make_available(cq[0]);
 }
+
 void
 gostraight(uint32_t direction, uint32_t index)
 {
-	(void)direction;
-	(void)index;
-	/*
-	 * Implement this function.
-	 */
-	return;
+	int passqs[2];
+
+	passqs[0] = (int) direction;
+	passqs[1] = (passqs[0] + 3) % 4;
+
+	while (!check_and_acquire(passqs, 2)) {
+		lock_acquire(wftlk);
+		cv_wait(wftcv, wftlk);
+		lock_release(wftlk);
+	}
+
+	inQuadrant(passqs[0], index);
+	inQuadrant(passqs[1], index);
+	make_available(passqs[0]);
+	leaveIntersection(index);
+	make_available(passqs[1]);
 }
+
 void
 turnleft(uint32_t direction, uint32_t index)
 {
-	(void)direction;
-	(void)index;
-	/*
-	 * Implement this function.
-	 */
-	return;
+	int i, cq, passqs[3];
+
+	passqs[0] = (int) direction;
+	passqs[1] = (passqs[0] + 3) % 4;
+	passqs[2] = (passqs[0] + 2) % 4;
+
+	while (!check_and_acquire(passqs, 3)) {
+		lock_acquire(wftlk);
+		cv_wait(wftcv, wftlk);
+		lock_release(wftlk);
+	}
+
+	for (i=0; i<3; ++i) {
+		cq = passqs[i];
+
+		inQuadrant(cq, index);
+		if (i == 2)
+			leaveIntersection(index);
+		if (i > 0)
+			make_available(passqs[i-1]);
+	}
+	make_available(cq);
+}
+
+bool
+check_and_acquire(int qs[], size_t s)
+{
+	bool all_available = true;
+	int i, cq, n;
+
+	n = (int) s;
+	spinlock_acquire(&quadrantspn);
+	for (i=0; i<n; ++i) {
+		cq = qs[i];
+		if (!is_available[cq])
+			all_available = false;
+	}
+
+	if (all_available) {
+		for (i=0; i<n; ++i) {
+			cq = qs[i];
+			is_available[cq] = false;
+			P(quadrantsem[cq]);
+		}
+	}
+	spinlock_release(&quadrantspn);
+
+	return all_available;
+}
+
+void
+make_available (int q)
+{
+	spinlock_acquire(&quadrantspn);
+	V(quadrantsem[q]);
+	is_available[q] = true;
+	spinlock_release(&quadrantspn);
+
+	lock_acquire(wftlk);
+	cv_signal(wftcv, wftlk);
+	lock_release(wftlk);
 }

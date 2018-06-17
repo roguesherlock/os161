@@ -43,6 +43,7 @@
  */
 
 #define ENOSYS          1      /* Function not implemented */
+#define ENORECOVERY     2      /* Bad Action. Non Recoverable */
 /* unused               2                                  */
 #define ENOMEM          3      /* Out of memory */
 #define EAGAIN          4      /* Operation would block */

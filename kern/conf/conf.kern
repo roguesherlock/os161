@@ -342,6 +342,8 @@ optfile   hangman thread/hangman.c
 #
 
 file      proc/proc.c
+file      proc/file_handle.c
+file      proc/files_table.c
 
 #
 # Virtual memory system
@@ -349,6 +351,7 @@ file      proc/proc.c
 #
 
 file      vm/kmalloc.c
+file      vm/vm.c
 
 optofffile dumbvm   vm/addrspace.c
 
@@ -387,6 +390,27 @@ file      vfs/devnull.c
 file      syscall/loadelf.c
 file      syscall/runprogram.c
 file      syscall/time_syscalls.c
+
+# File System Support
+file      syscall/open_syscall.c
+file      syscall/read_syscall.c
+file      syscall/write_syscall.c
+file      syscall/close_syscall.c
+file      syscall/lseek_syscall.c
+file      syscall/dup2_syscall.c
+file      syscall/chdir_syscall.c
+file      syscall/__getcwd_syscall.c
+
+# Process Support
+file      proc/proc_table.c
+file      syscall/getpid_syscall.c
+file      syscall/fork_syscall.c
+file      syscall/execv_syscall.c
+file      syscall/waitpid_syscall.c
+file      syscall/_exit_syscall.c
+
+# VM
+file      syscall/sbrk_syscall.c
 
 #
 # Startup and initialization

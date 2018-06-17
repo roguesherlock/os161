@@ -119,6 +119,7 @@ common_prog(int nargs, char **args)
 {
 	struct proc *proc;
 	int result;
+	pid_t dpid;
 	unsigned tc;
 
 	/* Create a process for the new program to run in. */
@@ -138,6 +139,11 @@ common_prog(int nargs, char **args)
 		proc_destroy(proc);
 		return result;
 	}
+
+	result = sys_waitpid(proc->pid, NULL, 0, &dpid);
+	if (result)
+		kprintf("[!] common_prog: result %d, pid %d\n", result, dpid);
+
 
 	/*
 	 * The new process will be destroyed when the program exits...

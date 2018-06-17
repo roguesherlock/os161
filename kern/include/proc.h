@@ -37,10 +37,12 @@
  */
 
 #include <spinlock.h>
+#include <synch.h>
 
 struct addrspace;
 struct thread;
 struct vnode;
+struct files_table;
 
 /*
  * Process structure.
@@ -60,9 +62,17 @@ struct vnode;
  * without sleeping.
  */
 struct proc {
-	char *p_name;			/* Name of this process */
+	char *p_name;				/* Name of this process */
 	struct spinlock p_lock;		/* Lock for this structure */
 	unsigned p_numthreads;		/* Number of threads in this process */
+	pid_t pid;					/* Process Id */
+	pid_t ppid;					/* Process's parent ID */
+	struct proc *parent;		/* parent */
+	int exit_status;			/* Process's exit status */
+	bool exited;				/* has process exited? */
+
+	/* for waitpid */
+	struct semaphore *exit_sem;
 
 	/* VM */
 	struct addrspace *p_addrspace;	/* virtual address space */
@@ -70,7 +80,17 @@ struct proc {
 	/* VFS */
 	struct vnode *p_cwd;		/* current working directory */
 
-	/* add more material here as needed */
+	struct files_table *files; 	/* files table */
+
+	/*
+	 * os/161 is single threaded.
+	 * Although, kproc has multiple threads.
+	 * But, I'm not adding threadlist just for a single thread
+	 * as I'll have to change the whole semantics
+	 *
+	 */
+	struct thread *p_thread;	/* process thread */
+
 };
 
 /* This is the process structure for the kernel and for kernel-only threads. */
@@ -97,5 +117,7 @@ struct addrspace *proc_getas(void);
 /* Change the address space of the current process, and return the old one. */
 struct addrspace *proc_setas(struct addrspace *);
 
+/* copy src process to dst process. dst process has new unique pid.*/
+int proc_copy(struct proc *src, struct proc **dst);
 
 #endif /* _PROC_H_ */

@@ -41,11 +41,25 @@
 struct vnode;
 
 
+#if !OPT_DUMBVM
+
+#define GET_PHYSICAL_ADDR(X) (((X) - MIPS_KSEG0) & PAGE_FRAME)
+
+struct segment {
+        vaddr_t sg_vbase;
+        size_t sg_size;
+        unsigned sg_flags:16;
+        unsigned sg_refcount:16;
+        struct segment *next;
+};
+
+#endif
+
+
 /*
  * Address space - data structure associated with the virtual memory
  * space of a process.
  *
- * You write this.
  */
 
 struct addrspace {
@@ -58,7 +72,17 @@ struct addrspace {
         size_t as_npages2;
         paddr_t as_stackpbase;
 #else
-        /* Put stuff here for your VM system */
+        unsigned as_copied:1;
+
+        /* linked list of page table entries */
+        struct page_table_entry *as_page_table;
+
+        /* linked list of segments */
+        struct segment *as_segments;
+
+        /* stack and heap */
+        struct segment stack;
+        struct segment heap;
 #endif
 };
 
@@ -117,6 +141,23 @@ int               as_define_region(struct addrspace *as,
 int               as_prepare_load(struct addrspace *as);
 int               as_complete_load(struct addrspace *as);
 int               as_define_stack(struct addrspace *as, vaddr_t *initstackptr);
+
+
+#if !OPT_DUMBVM
+
+int as_actually_copy(struct addrspace *as);
+
+int as_add_new_pte (struct addrspace *as, vaddr_t vaddr, unsigned flags, struct page_table_entry **pte);
+
+void as_rm_pte (struct addrspace *as, vaddr_t vaddr);
+
+bool as_is_addr_valid (struct addrspace *as, vaddr_t vaddr);
+
+struct page_table_entry *as_get_pte(struct addrspace *as, vaddr_t vaddr);
+
+unsigned as_get_flags (struct addrspace *as, vaddr_t vaddr);
+
+#endif
 
 
 /*
