@@ -154,7 +154,8 @@ files_table_destroy (struct files_table *ft)
     int i;
 
     for (i = 0; i < NR_OPEN_DEFAULT; ++i)
-        file_handle_destroy(ft->fd_array[i]);
+        if (ft->fd_array[i])
+            file_handle_destroy(ft->fd_array[i]);
 
     spinlock_cleanup(&ft->ft_lock);
 

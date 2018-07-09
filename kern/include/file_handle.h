@@ -19,10 +19,10 @@
 
 
 struct file_handle {
-    volatile unsigned int refcount;     /* reference counter */
+    volatile unsigned refcount:8;     /* reference counter */
     struct spinlock fh_lock;            /* file handle lock */
     struct vnode *file;                 /* file */
-    int f_openflags;                    /* file opened as */
+    int f_openflags:8;                    /* file opened as */
     off_t f_pos;                        /* file offset */
     struct rwlock *f_lock;              /* file lock */
 };

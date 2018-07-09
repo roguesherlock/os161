@@ -15,7 +15,7 @@
 
 struct files_table {
     struct spinlock ft_lock;                        /* spinlock for synchronization */
-    int next_fd;                                    /* cache for the next file descriptor */
+    int next_fd:8;                                    /* cache for the next file descriptor */
     struct file_handle *fd_array[NR_OPEN_DEFAULT];  /* files handles array */
 };
 

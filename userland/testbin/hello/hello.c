@@ -34,12 +34,18 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <err.h>
+#include <unistd.h>
 #include <test161/test161.h>
 
 int
 main()
 {
-	printf("hello, world!\n");
+	int fd;
+
+	fd = open("writetest.dat", O_WRONLY | O_CREAT | O_TRUNC);
+
+	printf("fd: %d\n", fd);
+	// write(1, "hello, world!\n", 15);
 
 	success(TEST161_SUCCESS, SECRET, "/testbin/hello");
 	return 0;

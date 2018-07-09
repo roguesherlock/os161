@@ -48,7 +48,7 @@ struct vnode;
 struct segment {
         vaddr_t sg_vbase;
         size_t sg_size;
-        unsigned sg_flags:16;
+        unsigned sg_flags:8;
         struct segment *next;
 };
 

@@ -66,7 +66,7 @@
  */
 struct page {
     struct spinlock p_lock; /* lock for refrence count */
-    unsigned refcount;      /* how many threads are refrenceing this page */
+    unsigned refcount:8;      /* how many threads are refrenceing this page */
     unsigned flags:7;       /* access permissions for the page */
     unsigned dirty:1;       /* does the page contents need to be written back to disk? */
     vaddr_t id;             /* page id. allows to detect contiguous pages */
